@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.cache/
+.npm-cache/
+.env
+.env.*
+*.log
+__pycache__/
+.DS_Store
