@@ -23,3 +23,7 @@ test('bundled dock uses output-model evidence and named tariff variants',async()
  const output=cleanRun({workspaceId:'w',fileId:'f',runId:'r',status:'completed',resultCount:1,native:{estimateModel:'GPT Image 1 Edit',outputs:[{id:'a',model:'seedream_v5_edit',parameters:{}}]}}),h=setup({runs:[output]});await settle();assert.match(h.shadow().querySelector('.dock .value').textContent,/Оценка ≈ 4/);
  const variant=cleanRun({...output,model:'Sora 2 Pro',native:null}),v=setup({runs:[variant]});await settle();assert.match(v.shadow().querySelector('.dock .value').textContent,/Оценка ≈ 288/);
 });
+test('dock shows one midpoint total and preserves missing-cost indication',async()=>{
+ const range=cleanRun({workspaceId:'w',fileId:'f',runId:'range',model:'ChatGPT Images 2.0 Edit',status:'completed',resultCount:1,native:{savedHistory:true}}),actual=cleanRun({...range,runId:'actual',events:[{id:'receipt',kind:'debit',credits:10}]}),unknown=cleanRun({...range,runId:'unknown',model:'Unknown'}),h=setup({runs:[range,actual,unknown]});await settle();
+ const value=h.shadow().querySelector('.dock .value').textContent;assert.match(value,/Оценка ≈ 29/);assert.ok(value.includes('?'));assert.ok(!value.includes('–'));assert.ok(!h.shadow().querySelector('.dock .muted').textContent.includes('–'));
+});

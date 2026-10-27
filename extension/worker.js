@@ -37,7 +37,7 @@ async function route(m,sender){
  if(m.type==='refreshFx'){const quote=await fetchCbrUsd();const s=await read();s.settings={...s.settings,rubPerUsd:quote.rate,fxMode:'auto',fxDate:quote.date,fxSource:quote.source};await write(s);return {ok:true};}
  if(m.type==='get'){const s=await read();const bytes=JSON.stringify(s).length;return {state:s,context:await context(m.tabId),bytes};}
  const s=await read();
- if(m.type==='diagnostics')return {version:VERSION,createdAt:new Date().toISOString(),integration:'saved-history-catalog-estimates',schemas:s.diagnostics,native:nativeDiagnostics(s),analysis:pricingAudit(Object.values(s.runs),s.rates,s.mappings,s.settings,s.modelAssignments)};
+ if(m.type==='diagnostics'){const analysis=pricingAudit(Object.values(s.runs),s.rates,s.mappings,s.settings,s.modelAssignments),focusModels=analysis.records.filter(r=>r.cost.kind==='unknown'||r.cost.min!==r.cost.max).flatMap(r=>[r.model,r.modelHint,...r.outputs.map(o=>o.model)]);return {version:VERSION,createdAt:new Date().toISOString(),integration:'saved-history-catalog-estimates',schemas:s.diagnostics,native:nativeDiagnostics(s,{focusModels}),analysis};}
  if(m.type==='settings'){undoPoint(s);const changes={...m.settings};if('usdPer10k' in changes&&!('creditPlan' in changes))changes.creditPlan='custom';if('rubPerUsd' in changes&&!('fxMode' in changes))changes.fxMode='manual';s.settings=cleanSettings({...s.settings,...changes});}
  else if(m.type==='position'){s.settings=cleanSettings({...s.settings,position:m.position});}
  else if(m.type==='rate'){undoPoint(s);const rate=cleanRate(m.rate);s.rates=s.rates.filter(x=>x.id!==rate.id);s.rates.push(rate);}

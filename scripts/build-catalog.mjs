@@ -22,6 +22,9 @@ for(const row of input){
 }
 for(const e of old)if(!entries.some(x=>norm(x.name)===norm(e.name)))entries.push({...e,provenance:'reference-only',source:'Предоставленный каталог 0.20.0',publishedAt:'2026-07-28',checkedAt:null,priceText:e.kind==='formula'?'Формула из предыдущего каталога':String(e.min)+(e.min!==e.max?'–'+e.max:'')});
 for(const e of entries)if(e.name==='Seedream V5 Edit')e.aliases.push('Seedream V5.0 Edit','Seedream 5.0 Edit');
+// The official image-edit table names Flux 2 Max; the provider documents this
+// exact edit endpoint. Do not strip arbitrary version/mode suffixes globally.
+for(const e of entries)if(e.name==='Flux 2 Max'){e.aliases.push('Flux 2 Max Edit','fal-ai/flux-2-max/edit');e.excludedAliases=['fal-ai/flux-2-max'];e.aliasSources=['https://fal.ai/models/fal-ai/flux-2-max/edit/api','https://fal.ai/models/fal-ai/flux-2-max/api'];e.aliasesCheckedAt='2026-10-27';}
 // The comparison table groups distinct Kling versions into one column. They
 // must remain separate identities so a correction cannot cross versions.
 const kling=entries.find(e=>e.name==='Kling Video');
@@ -49,7 +52,7 @@ for(const parent of [...entries]){
   entries.push({...parent,name,aliases,derivedFrom:parent.name,provenance:'official-help-variant',options,min:Math.min(...prices),max:Math.max(...prices),modelMode:mode,parameterLabel:'Параметры варианта '+title,priceText:title+' · '+prices.join(' / ')+'; остальные условия из исходной таблицы'});
  }
 }
-const catalog={version:'2026-10-23',checkedAt:'2026-09-22',variantsUpdatedAt:'2026-10-23',officialCount:input.length,variantCount:entries.filter(e=>e.derivedFrom).length,entries};
+const catalog={version:'2026-10-27',aliasesUpdatedAt:'2026-10-27',checkedAt:'2026-09-22',variantsUpdatedAt:'2026-10-23',officialCount:input.length,variantCount:entries.filter(e=>e.derivedFrom).length,entries};
 fs.writeFileSync(new URL('../extension/catalog-data.js',import.meta.url),'// Public numeric tariff data: all ten official comparison tables. See docs/PRICING-RESEARCH.md.\nexport const BUILTIN_CATALOG = '+JSON.stringify(catalog,null,2)+';\n');
 fs.writeFileSync(new URL('../docs/catalog-data.json',import.meta.url),JSON.stringify(catalog,null,2)+'\n');
 console.log({official:input.length,total:entries.length,unknown:entries.filter(e=>e.kind==='unknown').map(e=>[e.name,e.priceText])});

@@ -1,3 +1,4 @@
+import {modelIdentity} from './model-matching.js';
 import {subscriptionPlan} from './currency.js';
 import {historicalModel,historicalParams,sameModel} from './pricing.js';
 import {savedProjection,cleanSaved,ingestSaved,reconcileSaved,outputMeta,cleanOutput,mergeHistoryParams} from './history.js';
@@ -90,7 +91,26 @@ export function ingestNative(s,raw,pageUrl=null){const p=cleanNativeProjection(r
  for(const q of p.accountPrices){const old=n.accountPrices[q.workspaceId];if(!old?.observedAt||q.observedAt>=old.observedAt)n.accountPrices[q.workspaceId]={...old,...q,planName:q.planName||old?.planName||'',planType:q.planType||old?.planType||'',planId:q.planId||old?.planId||null};}
  return {count,files:p.files.length};
 }
-export function nativeDiagnostics(s){const n=initNative(s),ids=new Map();const anon=v=>v==null?null:(ids.has(v)?ids.get(v):(ids.set(v,'id-'+(ids.size+1)),ids.get(v)));return {adapter:'weavy-saved-history-1.5.0',savedResultCount:Object.keys(n.saved).length,lastSeen:n.lastSeen,fileCount:Object.keys(s.files).length,nodeCount:Object.keys(n.nodes).length,runCount:Object.keys(s.runs).length,batchReferenceCount:Object.keys(n.batches).length,unresolvedRunCount:Object.values(n.pending).filter(r=>Object.values(s.files).filter(f=>f.fileId===r.recipeId).length!==1).length,runSamples:Object.values(n.pending).slice(-30).map(r=>({...r,outputs:(r.outputs||[]).slice(0,10).map(o=>({...o,id:anon(o.id),batchId:anon(o.batchId)})),recipeId:anon(r.recipeId),nodeRunId:anon(r.nodeRunId),nodeId:anon(r.nodeId),recipeRunId:anon(r.recipeRunId),batchId:anon(r.batchId)})),savedSamples:Object.values(n.saved).slice(-20).map(r=>({recipeId:anon(r.recipeId),nodeId:anon(r.nodeId),batchId:anon(r.batchId),model:r.model,estimateModel:r.estimateModel,status:r.status,createdAt:r.createdAt,parameters:r.parameters,output:{...r.output,id:anon(r.output.id),batchId:anon(r.output.batchId)}})),priceSamples:Object.values(n.prices).slice(0,25),menuPriceSamples:Object.values(n.menuPrices).slice(0,25).map(p=>({...p,id:anon(p.id)})),modelShapes:n.modelShapes};}
+export function nativeDiagnostics(s,{focusModels=[]}={}){
+ const n=initNative(s),ids=new Map(),anon=v=>v==null?null:(ids.has(v)?ids.get(v):(ids.set(v,'id-'+(ids.size+1)),ids.get(v)));
+ const focus=[...new Set(focusModels.filter(Boolean).map(modelIdentity))];
+ const relevant=values=>values.some(v=>{const name=modelIdentity(v);return name&&focus.some(f=>name===f||name.length>5&&f.length>5&&(name.includes(f)||f.includes(name)));});
+ const saved=Object.values(n.saved),prices=Object.values(n.prices),menu=Object.values(n.menuPrices),pending=Object.values(n.pending),fileCounts=new Map();
+ for(const f of Object.values(s.files))fileCounts.set(f.fileId,(fileCounts.get(f.fileId)||0)+1);
+ // Prioritize unresolved models and include different families before filling
+ // the remaining slots. The old first-25-price sample hid later model prices.
+ const choose=(rows,names,limit)=>{
+  const ordered=[...rows].reverse().map(row=>({row,priority:Number(relevant(names(row)))})).sort((a,b)=>b.priority-a.priority).map(x=>x.row),picked=[],seen=new Set(),pickedRows=new Set();
+  for(const row of ordered){const family=names(row).filter(Boolean).map(modelIdentity).join('|');if(!seen.has(family)){seen.add(family);picked.push(row);pickedRows.add(row);if(picked.length===limit)return picked;}}
+  for(const row of ordered)if(!pickedRows.has(row)){picked.push(row);if(picked.length===limit)break;}
+  return picked;
+ };
+ const savedSamples=choose(saved,r=>[r.model,r.estimateModel],40),priceSamples=choose(prices,p=>[p.name,p.modelName,p.modelType],500),menuSamples=choose(menu,p=>[p.name,p.modelName],100);
+ return {adapter:'weavy-saved-history-1.7.0',savedResultCount:saved.length,lastSeen:n.lastSeen,fileCount:Object.keys(s.files).length,nodeCount:Object.keys(n.nodes).length,runCount:Object.keys(s.runs).length,directRunCount:pending.length,batchReferenceCount:Object.keys(n.batches).length,unresolvedRunCount:pending.filter(r=>fileCounts.get(r.recipeId)!==1).length,
+  runSamples:pending.slice(-30).map(r=>({...r,outputs:(r.outputs||[]).slice(0,10).map(o=>({...o,id:anon(o.id),batchId:anon(o.batchId)})),recipeId:anon(r.recipeId),nodeRunId:anon(r.nodeRunId),nodeId:anon(r.nodeId),recipeRunId:anon(r.recipeRunId),batchId:anon(r.batchId)})),
+  savedSamples:savedSamples.map(r=>({recipeId:anon(r.recipeId),nodeId:anon(r.nodeId),batchId:anon(r.batchId),model:r.model,estimateModel:r.estimateModel,status:r.status,createdAt:r.createdAt,parameters:r.parameters,output:{...r.output,id:anon(r.output.id),batchId:anon(r.output.batchId)}})),savedSamplesOmitted:Math.max(0,saved.length-savedSamples.length),
+  priceCount:prices.length,priceSamples,priceSamplesOmitted:Math.max(0,prices.length-priceSamples.length),menuPriceCount:menu.length,menuPriceSamples:menuSamples.map(p=>({...p,id:anon(p.id)})),menuPriceSamplesOmitted:Math.max(0,menu.length-menuSamples.length),modelShapes:n.modelShapes};
+}
 
 export function endpointShape(raw,body,method='UNKNOWN'){try{const u=new URL(raw);if(u.protocol!=='https:'||!(u.hostname==='weavy.ai'||u.hostname.endsWith('.weavy.ai')))return null;const identities=['recipeId','batchId','workspaceId','id'];const safeWords=new Set(['api','v1','v2','v3','recipe','recipes','runs','run','batches','batch','history','nodes','node','prices','pricing','models','catalog','workspace','workspaces','credits','usage','transactions','users','me','user','menu','flows','workflow','workflows','graphql','profile','subscription','execution','executions','node-runs','recipe-runs','batch-runs']);const mask=value=>{const k=identities.find(k=>typeof body?.[k]==='string'&&body[k]===value);return k?'<'+k+'>':/^<(recipeId|batchId|workspaceId|id|segment)>$/.test(value)?value:safeWords.has(value)?value:'<segment>';};return {origin:u.origin,method:['GET','POST','PUT','PATCH','DELETE'].includes(method)?method:'UNKNOWN',path:u.pathname.split('/').map(s=>s?mask(decodeURIComponent(s)):'').join('/'),queryKeys:[...u.searchParams.keys()].filter(k=>/^[a-zA-Z_][a-zA-Z0-9_]{0,40}$/.test(k)&&!/token|secret|auth|key|code|email/i.test(k)).slice(0,30)};}catch{return null;}}
 export function cleanEndpoint(v){if(!v)return null;const clean=endpointShape(v.origin+(typeof v.path==='string'?v.path:''),{},v.method);if(!clean)return null;return {...clean,path:clean.path,queryKeys:(Array.isArray(v.queryKeys)?v.queryKeys:[]).filter(k=>typeof k==='string'&&/^[a-zA-Z_][a-zA-Z0-9_]{0,40}$/.test(k)&&!/token|secret|auth|key|code|email/i.test(k)).slice(0,30)};}

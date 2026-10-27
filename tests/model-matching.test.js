@@ -44,3 +44,15 @@ test('ambiguous aliases do not pick the first catalogue row',()=>{
  const entries=[{name:'Model A',aliases:['same v5 edit']},{name:'Model B',aliases:['same 5.0 edit']}],match=findModelMatch('Same V5.0 Edit',entries);
  assert.equal(match.kind,'ambiguous');assert.equal(match.model,null);assert.equal(match.candidates.length,2);
 });
+test('generic historical labels use the node service for suggestion order without automatic pricing',()=>{
+ const ranked=rankModels(catalogEntries(),'V5.0 Pro',['fal-ai/bytedance/seedream/v5/lite/edit']);assert.equal(ranked[0].name,'Seedream V5 Edit');
+ assert.equal(cost(run({model:'V5.0 Pro',native:{savedHistory:true,estimateModel:'fal-ai/bytedance/seedream/v5/lite/edit'}})).kind,'unknown');
+ const weak=rankModels([{name:'AAA Unrelated'},{name:'Flux 2 Max'}],'flux2-max-editt');assert.equal(weak[0].name,'Flux 2 Max');
+});
+test('the verified Flux Max edit endpoint is priced without collapsing other versions or modes',()=>{
+ assert.equal(canonicalModelName('fal-ai/flux-2-max/edit'),'Flux 2 Max');assert.equal(cost(run({model:null,native:{savedHistory:true,modelHint:'fal-ai/flux-2-max/edit'}})).credits,20);
+ for(const model of ['fal-ai/flux-2-max/ultra/edit','fal-ai/flux-2-max-v2/edit','fal-ai/flux-2-max'])assert.equal(canonicalModelName(model),model);
+});
+test('a shared provider prefix cannot outrank the actual model family',()=>{
+ const ranked=rankModels(catalogEntries(),'fal-ai/flux-2-max/edit');assert.equal(ranked[0].name,'Flux 2 Max');assert.match(ranked[1].name,/Flux/);
+});

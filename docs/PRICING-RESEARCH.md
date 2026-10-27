@@ -74,3 +74,10 @@
 Встроенные цены применяются только к оценкам. Для подтверждённых прошлых списаний нужны сами операции; новый прайс не реконструирует их.
 
 Новые варианты GPT Image 2.5 и Nano Banana 2 Lite исключены из приблизительного сопоставления со старыми моделями. Публичный каталог не дополнен выдуманными для них параметрическими правилами. Текущая цена меню без условий не используется как цена всех прошлых вариантов.
+
+
+## Verified endpoint alias — 2026-10-27
+
+The official [image-edit comparison](https://help.weavy.ai/en/articles/12343904-edit-image-models-comparison) lists Flux 2 Max at 10 credits. The provider's [edit API documentation](https://fal.ai/models/fal-ai/flux-2-max/edit/api) identifies `fal-ai/flux-2-max/edit` as Flux 2 Max image editing; this exact endpoint is now an alias of the existing image-edit entry. The separate [text-to-image endpoint](https://fal.ai/models/fal-ai/flux-2-max/api) is explicitly excluded from that alias rule. Provider USD prices are not converted into Weavy credits. The Weavy comparison itself warns that live availability/prices can change; an alias is not proof of a historical charge.
+
+The main UI now displays the midpoint of each bounded estimate. The audit retains both bounds and identifies the midpoint method. No distribution or statistical likelihood is inferred from a published range; unknown models/versions keep unknown costs until an appropriate tariff is available.

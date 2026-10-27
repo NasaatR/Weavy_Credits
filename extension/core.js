@@ -13,6 +13,7 @@ export const key=(...p)=>JSON.stringify(p);
 export const fileKey=r=>key(r.workspaceId,r.fileId);
 export const runKey=r=>key(r.workspaceId,r.runId);
 export const sourceModelName=(r,includeLabel=true)=>r.model||historicalOutputModel(r)||r.native?.estimateModel||r.native?.modelHint||(includeLabel?r.nodeName:'')||'';
+export const modelSuggestionHints=r=>[...new Set([r.native?.estimateModel,r.native?.modelHint,...(r.native?.outputs||[]).map(o=>o.model),r.nodeName].filter(Boolean))];
 const modelHint=r=>sourceModelName(r,false);
 export const modelNameKey=r=>modelIdentity(canonicalModelName(sourceModelName(r)));
 export const modelAssignmentKey=(r,scope='run')=>scope==='name'?modelNameKey(r)?key('name',modelNameKey(r)):null:scope==='node'&&r.nodeId?key('node',r.workspaceId,r.fileId,r.nodeId,canonicalModelName(modelHint(r)).toLowerCase()):key('run',r.workspaceId,r.fileId,r.runId);
@@ -183,21 +184,29 @@ export function executionCheck(run,rates=[],mappings={},assignments={}){
 }
 export function summarize(runs,rates,mappings,assignments={}){
  assignments=assignmentView(assignments);
- const out={rows:[],total:0,excluded:0,actual:0,estimate:0,estimateMax:0,actualCount:0,estimateCount:0,unknown:0,singleEstimate:0,singleCount:0,rangeMin:0,rangeMax:0,rangeCount:0,nodes:0,duration:0};const nodes=new Set();
+ const out={rows:[],total:0,excluded:0,actual:0,estimate:0,estimateMax:0,estimateCentral:0,actualCount:0,estimateCount:0,unknown:0,singleEstimate:0,singleCount:0,rangeMin:0,rangeMax:0,rangeCount:0,nodes:0,duration:0};const nodes=new Set();
  for(const run of runs){const c=cost(run,rates,mappings,assignments);if(c.kind==='ignored'){out.excluded++;continue;}out.total++;out.rows.push({...run,modelAssignment:modelAssignment(run,assignments),cost:c});nodes.add(key(run.workspaceId,run.fileId,run.nodeId||run.runId));out.duration+=number(run.parameters.duration??run.parameters.seconds)??0;
   if(c.kind==='actual'){out.actual+=c.credits;out.actualCount++;}
-  else if(c.kind==='estimate'){const max=c.maxCredits??c.credits;out.estimate+=c.credits;out.estimateMax+=max;out.estimateCount++;if(max===c.credits){out.singleCount++;out.singleEstimate+=c.credits;}else{out.rangeCount++;out.rangeMin+=c.credits;out.rangeMax+=max;}}
+  else if(c.kind==='estimate'){const max=c.maxCredits??c.credits;out.estimate+=c.credits;out.estimateMax+=max;out.estimateCentral+=centralCredits(c);out.estimateCount++;if(max===c.credits){out.singleCount++;out.singleEstimate+=c.credits;}else{out.rangeCount++;out.rangeMin+=c.credits;out.rangeMax+=max;}}
   else out.unknown++;
  }out.nodes=nodes.size;return out;
 }
+// A display estimate, not a probability claim or a confirmed debit. Retain the
+// original bounds for audits; unknown records never become zero-cost records.
+export function centralCredits(cost){
+ if(!['actual','estimate'].includes(cost?.kind)||number(cost.credits)===null)return null;
+ const high=cost.maxCredits??cost.credits;if(number(high)===null||high<cost.credits)return null;
+ return cost.credits+(high-cost.credits)/2;
+}
+export function reportTotal(sum){const total=sum.actual+sum.estimateCentral;return sum.actualCount+sum.estimateCount&&Number.isFinite(total)?total:null;}
 export function pricingAudit(runs,rates,mappings,settings,assignments={}){
  assignments=assignmentView(assignments);
  const ids=new Map(),anon=v=>{if(!ids.has(v))ids.set(v,'id-'+(ids.size+1));return ids.get(v);};const sum=summarize(runs,rates,mappings,assignments);
  const gaps=new Map();for(const r of sum.rows){if(r.cost.kind!=='unknown'&&!(r.cost.kind==='estimate'&&(r.cost.maxCredits??r.cost.credits)!==r.cost.credits))continue;
-  const model=canonicalModelName(resolvedModel(r,mappings,assignments)||sourceModelName(r,false))||'Модель не указана';if(!gaps.has(model))gaps.set(model,{model,records:0,unknown:0,ranged:0,reasons:new Map()});const g=gaps.get(model);g.records++;g[r.cost.kind==='unknown'?'unknown':'ranged']++;const reason=r.cost.gap||r.cost.reason||'Не хватает данных';g.reasons.set(reason,(g.reasons.get(reason)||0)+1);
+  const model=canonicalModelName(resolvedModel(r,mappings,assignments)||sourceModelName(r,false))||'Модель не указана';if(!gaps.has(model))gaps.set(model,{model,records:0,unknown:0,ranged:0,reasons:new Map(),hints:new Set()});const g=gaps.get(model);for(const hint of modelSuggestionHints(r))g.hints.add(hint);g.records++;g[r.cost.kind==='unknown'?'unknown':'ranged']++;const reason=r.cost.gap||r.cost.reason||'Не хватает данных';g.reasons.set(reason,(g.reasons.get(reason)||0)+1);
  }
- const coverage={unknownRecords:sum.unknown,rangedRecords:sum.rangeCount,models:[...gaps.values()].sort((a,b)=>b.records-a.records||a.model.localeCompare(b.model)).map(g=>({...g,modelKnown:!!catalogEntry(g.model)||rates.some(t=>sameModel(t.model,g.model)),reasons:[...g.reasons].map(([reason,records])=>({reason,records})),suggestions:catalogEntry(g.model)?[]:rankModels(catalogEntries(),g.model).filter(e=>e.similarity>=.5).slice(0,3).map(e=>e.name)}))};
- return {version:VERSION,type:'pricing-audit',createdAt:new Date().toISOString(),coverage,settings:{creditPlan:settings.creditPlan,usdPer10k:settings.usdPer10k,rubPerUsd:settings.rubPerUsd},totals:{records:sum.total,actual:sum.actual,actualCount:sum.actualCount,singleEstimate:sum.singleEstimate,singleCount:sum.singleCount,rangeMin:sum.rangeMin,rangeMax:sum.rangeMax,rangeCount:sum.rangeCount,unknown:sum.unknown},records:sum.rows.map(r=>({workspace:anon(r.workspaceId),file:anon(fileKey(r)),node:anon(key(r.workspaceId,r.fileId,r.nodeId)),run:anon(runKey(r)),model:r.model,modelAssignment:r.modelAssignment,modelHint:r.native?.estimateModel||r.native?.modelHint||null,mapping:mappings?.[r.model||r.native?.estimateModel||r.native?.modelHint]||null,parameters:r.parameters,outputs:(r.native?.outputs||[]).map(o=>({model:o.model||null,parameters:o.parameters})),resultCount:r.resultCount,status:r.status,createdAt:r.createdAt,check:executionCheck(r,rates,mappings,assignments),cost:{kind:r.cost.kind,min:r.cost.credits,max:r.cost.maxCredits??r.cost.credits,basis:r.cost.basis||null,source:r.cost.source||null,reason:r.cost.reason||null,gap:r.cost.gap||null}}))};
+ const coverage={unknownRecords:sum.unknown,rangedRecords:sum.rangeCount,models:[...gaps.values()].sort((a,b)=>b.records-a.records||a.model.localeCompare(b.model)).map(({hints,...g})=>({...g,modelKnown:!!catalogEntry(g.model)||rates.some(t=>sameModel(t.model,g.model)),reasons:[...g.reasons].map(([reason,records])=>({reason,records})),suggestions:catalogEntry(g.model)?[]:rankModels(catalogEntries(),g.model,[...hints]).filter(e=>e.similarity>=.3).slice(0,3).map(e=>e.name)}))};
+ return {version:VERSION,type:'pricing-audit',createdAt:new Date().toISOString(),coverage,settings:{creditPlan:settings.creditPlan,usdPer10k:settings.usdPer10k,rubPerUsd:settings.rubPerUsd},totals:{records:sum.total,displayEstimate:reportTotal(sum),estimateMethod:'midpoint-of-bounds',actual:sum.actual,actualCount:sum.actualCount,singleEstimate:sum.singleEstimate,singleCount:sum.singleCount,rangeMin:sum.rangeMin,rangeMax:sum.rangeMax,rangeCount:sum.rangeCount,unknown:sum.unknown},records:sum.rows.map(r=>({workspace:anon(r.workspaceId),file:anon(fileKey(r)),node:anon(key(r.workspaceId,r.fileId,r.nodeId)),run:anon(runKey(r)),model:r.model,modelAssignment:r.modelAssignment,modelHint:r.native?.estimateModel||r.native?.modelHint||null,mapping:mappings?.[r.model||r.native?.estimateModel||r.native?.modelHint]||null,parameters:r.parameters,outputs:(r.native?.outputs||[]).map(o=>({model:o.model||null,parameters:o.parameters})),resultCount:r.resultCount,status:r.status,createdAt:r.createdAt,check:executionCheck(r,rates,mappings,assignments),cost:{kind:r.cost.kind,central:centralCredits(r.cost),min:r.cost.credits,max:r.cost.maxCredits??r.cost.credits,basis:r.cost.basis||null,source:r.cost.source||null,reason:r.cost.reason||null,gap:r.cost.gap||null}}))};
 }
 export function money(credits,settings){const usd=number(settings.usdPer10k)===null?null:credits*settings.usdPer10k/10000;return {usd,rub:usd===null||number(settings.rubPerUsd)===null?null:usd*settings.rubPerUsd};}
 export function initial(){return {schema:SCHEMA,settings:{...DEFAULTS},runs:{},files:{},rates:[],mappings:{},modelAssignments:{},sets:[],budgets:{},profiles:[],diagnostics:[],undo:[],redo:[],updatedAt:null};}

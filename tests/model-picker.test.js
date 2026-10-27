@@ -50,3 +50,11 @@ test('only one model menu remains open and pointer highlight clears the previous
  const choices=b.querySelectorAll('[role=option]');choices[0].onpointermove();choices[1].onpointermove();assert.equal(choices[0].classList.contains('focused'),false);assert.equal(choices[1].classList.contains('focused'),true);
  b.querySelector('input').onblur();
 });
+test('node context ranks a generic label but an explicit new search takes precedence',()=>{
+ const selected=[],h=setup({entries:[{name:'AAA Other',model:'Other'},{name:'Seedream V5 Edit',model:'Seedream V5 Edit'},{name:'Recraft V3',model:'Recraft V3'}],suggestedFor:'V5.0 Pro',suggestionHints:['fal-ai/bytedance/seedream/v5/lite/edit'],onSelect:async v=>selected.push(v)});
+ h.input.onfocus();assert.equal(h.list.querySelector('.model-option-name').textContent,'Seedream V5 Edit');assert.deepEqual(selected,[]);
+ h.input.value='Recraft';h.input.oninput();assert.equal(h.list.querySelector('.model-option-name').textContent,'Recraft V3');assert.deepEqual(selected,[]);
+});
+test('an absent model family still warns instead of implying the first option is a match',()=>{
+ const selected=[],h=setup({suggestedFor:'Unlisted text model',onSelect:async v=>selected.push(v)});h.input.onfocus();assert.match(h.box.querySelector('[aria-live]').textContent,/Точного совпадения нет/);key(h.input,'Enter');assert.deepEqual(selected,[]);
+});

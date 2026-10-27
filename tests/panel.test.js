@@ -18,7 +18,7 @@ await import('../extension/panel.js');
 const tick=()=>new Promise(r=>nativeTimeout(r,5));await tick();
 const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent===label);
 const click=async label=>{const b=button(label);assert.ok(b,'button '+label);b.click();await tick();};
-test('report separates actual, estimate, default currency conversion and unknown costs',()=>{const t=document.querySelector('main').textContent;assert.ok(t.includes('100'));assert.ok(t.includes('≈ 50'));assert.ok(t.includes('1 записей без оценки'));assert.ok(t.includes('частичная'));assert.equal(document.querySelectorAll('.money strong')[0].textContent,'0,83');});
+test('report has one combined headline with separate evidence in collapsed details',()=>{const t=document.querySelector('main').textContent;assert.ok(t.includes('100'));assert.ok(t.includes('≈ 50'));assert.ok(t.includes('1 записей без оценки'));assert.ok(t.includes('частичная'));assert.equal(document.querySelectorAll('.money strong')[0].textContent,'1,25');assert.equal(document.querySelector('.total').firstChild.textContent,'≈ 150');assert.equal(document.querySelector('.hero .estimate'),null);assert.equal(document.querySelector('.precision').hasAttribute('open'),false);});
 test('unpriced node has an immediately visible model field and saves without a dialog or apply button',async()=>{
  const box=document.querySelector('.model-fixes');assert.ok(box.textContent.includes('Unknown'));assert.equal(box.querySelector('button'),null);assert.ok(document.querySelector('#rows .row').textContent.includes('Unknown node'));
  const search=box.querySelector('[role=combobox]');search.onfocus();search.value='Estimated';search.oninput();box.querySelector('[role=option]').click();await tick();
@@ -32,17 +32,17 @@ test('individual generation model selection stays scoped to that generation',asy
  assert.equal(messages.filter(m=>m.type==='assignModel').at(-1).scope,'run');assert.equal(state.modelAssignments[modelAssignmentKey(state.runs['["w","r2"]'])],'Estimated');
  const updated=[...document.querySelectorAll('#rows .row')].find(r=>r.textContent.includes('Unknown node'));assert.ok(updated.textContent.includes('Выбрано вами: Estimated · для этой генерации'));updated.querySelector('[role=combobox]').onfocus();updated.querySelector('[role=option]').click();await tick();
 });
-test('clear file selection does not retain previous total',async()=>{await click('Сбросить выбор');assert.equal(document.querySelector('.total').firstChild.textContent,'—');await click('Только этот файл');assert.ok(document.querySelector('.total').textContent.includes('100'));});
-test('summary includes currency assumptions and coverage',async()=>{await click('Копировать сводку');assert.ok(copied.includes('100'));assert.ok(copied.includes('Отдельная оценка: 50'));assert.ok(copied.includes('2/3'));assert.ok(copied.includes('1 USD = 84,0954 RUB'));});
+test('clear file selection does not retain previous total',async()=>{await click('Сбросить выбор');assert.equal(document.querySelector('.total').firstChild.textContent,'—');await click('Только этот файл');assert.ok(document.querySelector('.total').textContent.includes('150'));});
+test('summary includes currency assumptions and coverage',async()=>{await click('Копировать сводку');assert.ok(copied.includes('Средняя оценка: 150'));assert.ok(!copied.includes('Отдельная оценка:'));assert.ok(copied.includes('2/3'));assert.ok(copied.includes('1 USD = 84,0954 RUB'));});
 test('theme toggles and settings contain required defaults',async()=>{document.querySelector('#theme').click();await tick();assert.ok(document.body.classList.contains('light'));await click('Настройки');assert.equal(document.querySelector('[name=fontSize]').value,'14');assert.equal(document.querySelector('[name=usdPer10k]').value,String(10000/120));assert.equal(document.querySelector('[name=rubPerUsd]').value,'84.0954');assert.ok(button('Сбросить положение панели'));});
 test('data screen discloses unverified integration, supports diagnostics export',async()=>{await click('Данные');assert.ok(document.querySelector('main').textContent.includes('Для полного расхода за всё время ещё нужен источник сумм списаний'));assert.ok(button('Скачать диагностику'));assert.ok(button('Импорт JSON'));});
 test('data screen presents direct diagnostic copying with its result status',()=>{const b=button('Копировать диагностику');assert.ok(b);assert.ok(b.classList.contains('primary'));assert.ok(document.querySelector('.diagnostics-copy-status[role=status]'));assert.ok(document.querySelector('main').textContent.includes('Ctrl+V'));});
-test('saved history estimate and its money range replace the empty hero',async()=>{
+test('saved history midpoint and matching currency replace the empty hero',async()=>{
  state.runs={};state.settings.usdPer10k=100;state.settings.rubPerUsd=90;
  addRuns(state,[{workspaceId:'w',fileId:'f',runId:'saved-result',nodeId:'saved-node',status:'completed',resultCount:1,native:{savedHistory:true,estimateModel:'ChatGPT Images 2.0 Edit',outputs:[]}}]);
  await click('Обновить');await click('Отчёт');
- assert.ok(document.querySelector('.total').textContent.includes('≈ 1–37'));
- assert.equal(document.querySelector('.money strong').textContent,'0,01–0,37');
+ assert.ok(document.querySelector('.total').textContent.includes('≈ 19'));
+ assert.equal(document.querySelector('.money strong').textContent,'0,19');
  assert.ok(document.querySelector('main').textContent.includes('полнота истории не подтверждены'));
 });
 test('catalog contains built-in models, supports search and applies the chosen mapping',async()=>{
@@ -94,11 +94,11 @@ test('simple custom model price exposes output unit, scope and optional paramete
  assert.ok(document.querySelector('[name=resolution]'));assert.ok(document.querySelector('[name=quality]'));assert.ok(document.querySelector('[name=allowUndated]'));
  document.querySelector('#rateDialog').close();
 });
-test('many unknown nodes stay searchable and model names are alphabetized in the inline field',async()=>{
+test('many unknown nodes stay searchable and the full model list remains available',async()=>{
  state.runs={};addRuns(state,Array.from({length:200},(_,i)=>({workspaceId:'w',fileId:'f',runId:'large-'+i,nodeId:'node-'+i,nodeName:'Unknown node '+i,model:'Imported '+i,status:'completed',resultCount:1,native:{savedHistory:true}})));
  await click('Данные');await click('Обновить');await click('Отчёт');await click('По нодам');assert.equal(document.querySelectorAll('.model-fix').length,6);assert.equal(document.querySelectorAll('#rows>.row').length,150);
  const search=document.querySelector('[name=fixesSearch]');search.value='node 199';search.oninput();assert.equal(document.querySelectorAll('.model-fix').length,1);assert.ok(document.querySelector('.model-fix').textContent.includes('Imported 199'));
- const picker=document.querySelector('.model-fix [role=combobox]');picker.onfocus();const names=[...document.querySelectorAll('.model-fix .model-option-name')].map(n=>n.textContent);assert.deepEqual(names,[...names].sort((a,b)=>a.localeCompare(b,'ru',{numeric:true,sensitivity:'base'})));picker.onblur();search.value='';search.oninput();
+ const picker=document.querySelector('.model-fix [role=combobox]');picker.onfocus();const names=[...document.querySelectorAll('.model-fix .model-option-name')].map(n=>n.textContent);assert.ok(names.includes('Seedream V5 Edit'));assert.ok(names.length>=188);picker.onblur();search.value='';search.oninput();
 });
 test('background history updates do not close the inline model search while typing',async()=>{
  const search=document.querySelector('.model-fix [role=combobox]');search.onfocus();search.value='nano banana';search.oninput();listeners[0]({type:'changed'});await new Promise(r=>nativeTimeout(r,210));

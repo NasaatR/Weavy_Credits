@@ -22,14 +22,14 @@ const modelOfEntry=e=>e.model||e.name;
 function identityVariants(value){
  const all=[modelIdentity(value)];
  let rest=typeof value==='string'?value.trim():'';
- for(let depth=0;depth<4&&/^(?:fal-ai|fal|openai|google|bytedance|replicate|stability-ai|bfl|runwayml)\//i.test(rest);depth++){rest=rest.replace(/^[^/]+\//,'');all.push(modelIdentity(rest));}
+ for(let depth=0;depth<4&&/^(?:fal-ai|fal|openai|google|bytedance|replicate|stability-ai|bfl|black-forest-labs|runwayml|anthropic)\//i.test(rest);depth++){rest=rest.replace(/^[^/]+\//,'');all.push(modelIdentity(rest));}
  return [...new Set(all.filter(Boolean))];
 }
 export function findModelMatch(value,entries){
  const wanted=identityVariants(value),found=new Map();if(!wanted.length)return {kind:'none',model:null,candidates:[]};
  if(!entryIndexes.has(entries)){const index=new Map();for(const e of entries)for(const name of namesOf(e))for(const n of identityVariants(name)){if(!index.has(n))index.set(n,new Map());index.get(n).set(modelOfEntry(e),e);}entryIndexes.set(entries,index);}
  for(const n of wanted)for(const [name,e]of entryIndexes.get(entries).get(n)||[])found.set(name,e);
- const candidates=[...found.values()];
+ const candidates=[...found.values()].filter(e=>!(e.excludedAliases||[]).some(n=>modelIdentity(n)===modelIdentity(value)));
  if(candidates.length===1){const entry=candidates[0];return {kind:namesOf(entry).some(n=>n.trim().toLowerCase()===value.trim().toLowerCase())?'exact':'format',model:modelOfEntry(entry),entry,candidates};}
  return {kind:candidates.length?'ambiguous':'none',model:null,candidates};
 }
@@ -47,13 +47,13 @@ function similarity(a,b){
  return Math.max(0,Math.min(1,score));
 }
 export function modelSimilarity(value,entry){
- const inputs=identityVariants(value);let score=0;
- for(const name of namesOf(entry))for(const a of inputs)for(const b of identityVariants(name))score=Math.max(score,similarity(a,b));
+ const inputs=identityVariants(value).slice(-1);let score=0;
+ // Provider prefixes carry no model identity: sharing "fal-ai/" must not
+ // make unrelated image families look similar.
+ for(const name of namesOf(entry))for(const a of inputs)for(const b of identityVariants(name).slice(-1))score=Math.max(score,similarity(a,b));
  return score;
 }
-export function rankModels(entries,value=''){
- return entries.map(e=>({...e,similarity:modelSimilarity(value,e)})).sort((a,b)=>{
-  const aa=a.similarity>=.5?a.similarity:0,bb=b.similarity>=.5?b.similarity:0;
-  return bb-aa||compareModelNames(a.name,b.name);
- });
+export function rankModels(entries,value='',hints=[]){
+ const context=[...new Set(hints.filter(v=>typeof v==='string'&&v.trim()))];
+ return entries.map(e=>({...e,similarity:Math.max(modelSimilarity(value,e),...context.map(v=>modelSimilarity(v,e)*.96))})).sort((a,b)=>b.similarity-a.similarity||compareModelNames(a.name,b.name));
 }

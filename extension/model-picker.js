@@ -12,7 +12,7 @@ export function modelMenuPosition(anchor,viewport,desiredHeight=300){
 
 // A single searchable field. Picking an option saves immediately; free text
 // never becomes a model assignment.
-export function modelPicker({entries,value='',fallbackValue='',suggestedFor='',label='Модель для расчёта',onSelect,onClose=()=>{}}){
+export function modelPicker({entries,value='',fallbackValue='',suggestedFor='',suggestionHints=[],label='Модель для расчёта',onSelect,onClose=()=>{}}){
  const make=(tag,attrs={},text='')=>{const n=document.createElement(tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,v);if(text)n.textContent=text;return n;};
  const id='model-picker-'+(++nextId),box=make('div',{class:'model-picker'}),caption=make('label',{for:id,class:'model-picker-label'},label);
  const search=make('input',{id,type:'search',role:'combobox','aria-autocomplete':'list','aria-expanded':'false','aria-controls':id+'-list','aria-describedby':id+'-status',autocomplete:'off',placeholder:'Найти и выбрать модель…'});
@@ -43,11 +43,12 @@ export function modelPicker({entries,value='',fallbackValue='',suggestedFor='',l
  };
  const draw=(query='')=>{
   const q=query.trim().toLocaleLowerCase('ru'),words=q.split(/\s+/).filter(Boolean),normalized=modelIdentity(q).split(' ').filter(Boolean);
-  const ranked=rankModels(entries,q||suggestedFor||value||fallbackValue);
+  const hints=!q||modelIdentity(q)===modelIdentity(suggestedFor)?suggestionHints:[];
+  const ranked=rankModels(entries,q||suggestedFor||value||fallbackValue,hints);
   matches=[...(value?[automatic]:[]),...ranked].filter(e=>{const hay=(e.name+' '+e.model+' '+(e.aliases||[]).join(' ')).toLocaleLowerCase('ru'),identity=modelIdentity(hay);return !q||words.every(w=>hay.includes(w))||normalized.every(w=>identity.includes(w))||q.length>=3&&e.similarity>=.5;});
   const matching=findModelMatch(q||suggestedFor,entries);
   status.dataset.state='help';
-  status.textContent=matching.kind==='ambiguous'?'Есть несколько совпадений — какая модель использовалась?':matching.kind==='none'&&ranked[0]?.similarity>=.5?'Точного совпадения нет — выберите подходящую модель из похожих.':'';
+  status.textContent=matching.kind==='ambiguous'?'Есть несколько совпадений — какая модель использовалась?':matching.kind==='none'&&(q||suggestedFor||hints.length)?'Точного совпадения нет — выберите модель или уточните поиск.':'';
   list.replaceChildren();options=[];active=-1;search.removeAttribute('aria-activedescendant');
   matches.forEach((entry,i)=>{const opt=make('div',{id:id+'-option-'+i,role:'option','aria-selected':String(entry.model===(value||fallbackValue)),class:'model-option'});
    opt.append(make('span',{class:'model-option-name'},entry.name));if(entry.hint)opt.append(make('small',{},(entry.similarity>=.5&&entry.similarity<1?'Похожее название · ':'')+entry.hint));

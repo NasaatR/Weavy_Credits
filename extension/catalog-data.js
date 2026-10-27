@@ -1,6 +1,7 @@
 // Public numeric tariff data: all ten official comparison tables. See docs/PRICING-RESEARCH.md.
 export const BUILTIN_CATALOG = {
-  "version": "2026-10-23",
+  "version": "2026-10-27",
+  "aliasesUpdatedAt": "2026-10-27",
   "checkedAt": "2026-09-22",
   "variantsUpdatedAt": "2026-10-23",
   "officialCount": 147,
@@ -745,12 +746,23 @@ export const BUILTIN_CATALOG = {
       "source": "https://help.weavy.ai/en/articles/12343904-edit-image-models-comparison",
       "checkedAt": "2026-09-22",
       "publishedAt": "2026-04-26",
-      "aliases": [],
+      "aliases": [
+        "Flux 2 Max Edit",
+        "fal-ai/flux-2-max/edit"
+      ],
       "category": "image-edit",
       "provenance": "official-help",
       "kind": "fixed",
       "min": 10,
-      "max": 10
+      "max": 10,
+      "excludedAliases": [
+        "fal-ai/flux-2-max"
+      ],
+      "aliasSources": [
+        "https://fal.ai/models/fal-ai/flux-2-max/edit/api",
+        "https://fal.ai/models/fal-ai/flux-2-max/api"
+      ],
+      "aliasesCheckedAt": "2026-10-27"
     },
     {
       "name": "Flux Fill Pro",
