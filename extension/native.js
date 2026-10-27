@@ -1,4 +1,5 @@
 import {modelIdentity} from './model-matching.js';
+import {VERSION} from './version.js';
 import {subscriptionPlan} from './currency.js';
 import {historicalModel,historicalParams,sameModel} from './pricing.js';
 import {savedProjection,cleanSaved,ingestSaved,reconcileSaved,outputMeta,cleanOutput,mergeHistoryParams} from './history.js';
@@ -16,7 +17,7 @@ function resultValues(n){
 
 export function nativeProjection(body,observedAt=new Date().toISOString()){
  const out={files:[],nodes:[],runs:[],saved:[],prices:[],menuPrices:[],batches:[],modelShapes:[],accountPrice:null,accountPrices:[],observedAt:iso(observedAt)};
- function file(v,full=false){if(!obj(v)||!sid(v.id)||!sid(v.workspaceId)||typeof v.name!=='string')return;const f={fileId:v.id,workspaceId:v.workspaceId,name:text(v.name),full};out.files.push(f);if(full){for(const n of v.nodes.slice(0,3000)){if(!sid(n?.id))continue;out.nodes.push(nodeMeta(n,f));out.saved.push(...savedProjection(n,f));if(n.isModel===true&&out.modelShapes.length<20){const sh=richShape(n);if(!out.modelShapes.some(x=>x.type===text(n.type)))out.modelShapes.push({type:text(n.type),shape:sh});}}
+ function file(v,full=false){if(!obj(v)||!sid(v.id)||!sid(v.workspaceId)||typeof v.name!=='string')return;const f={fileId:v.id,workspaceId:v.workspaceId,name:text(v.name),full};out.files.push(f);if(full){for(const n of v.nodes.slice(0,3000)){if(!sid(n?.id))continue;out.nodes.push(nodeMeta(n,f));out.saved.push(...savedProjection(n,f));if(n.isModel===true&&out.modelShapes.length<20){const sh=richShape(n);if(!out.modelShapes.some(x=>x.type===text(n.type)&&JSON.stringify(x.shape)===JSON.stringify(sh)))out.modelShapes.push({type:text(n.type),shape:sh});}}
   for(const b of (Array.isArray(v.batchRuns)?v.batchRuns:[]).slice(0,2000)){const batchId=typeof b==='string'?sid(b):sid(b?.batchId)||sid(b?.id);if(batchId)out.batches.push({fileId:v.id,workspaceId:v.workspaceId,batchId,identitySource:typeof b==='string'?'batchRuns-string':b?.batchId?'batchId':'unverified-id'});if(obj(b)&&Array.isArray(b.recipeRuns)&&sid(b.batchId))history({...b,recipeId:v.id});}
  }}
  function history(b){
@@ -87,7 +88,7 @@ export function ingestNative(s,raw,pageUrl=null){const p=cleanNativeProjection(r
  for(const r of p.prices)n.prices[key(r.name,r.provider,r.modelName,r.modelVariant,r.isByok,JSON.stringify(r.extraDataShape))]=r;
  for(const r of p.menuPrices)n.menuPrices[r.id]=r;
  for(const b of p.batches)n.batches[key(b.workspaceId,b.fileId,b.batchId)]=b;
- for(const m of p.modelShapes){n.modelShapes=n.modelShapes.filter(x=>x.type!==m.type);n.modelShapes.push(m);}n.modelShapes=n.modelShapes.slice(-40);
+ for(const m of p.modelShapes)if(!n.modelShapes.some(x=>x.type===m.type&&JSON.stringify(x.shape)===JSON.stringify(m.shape)))n.modelShapes.push(m);n.modelShapes=n.modelShapes.slice(-40);
  for(const q of p.accountPrices){const old=n.accountPrices[q.workspaceId];if(!old?.observedAt||q.observedAt>=old.observedAt)n.accountPrices[q.workspaceId]={...old,...q,planName:q.planName||old?.planName||'',planType:q.planType||old?.planType||'',planId:q.planId||old?.planId||null};}
  return {count,files:p.files.length};
 }
@@ -105,8 +106,8 @@ export function nativeDiagnostics(s,{focusModels=[]}={}){
   for(const row of ordered)if(!pickedRows.has(row)){picked.push(row);if(picked.length===limit)break;}
   return picked;
  };
- const savedSamples=choose(saved,r=>[r.model,r.estimateModel],40),priceSamples=choose(prices,p=>[p.name,p.modelName,p.modelType],500),menuSamples=choose(menu,p=>[p.name,p.modelName],100);
- return {adapter:'weavy-saved-history-1.7.0',savedResultCount:saved.length,lastSeen:n.lastSeen,fileCount:Object.keys(s.files).length,nodeCount:Object.keys(n.nodes).length,runCount:Object.keys(s.runs).length,directRunCount:pending.length,batchReferenceCount:Object.keys(n.batches).length,unresolvedRunCount:pending.filter(r=>fileCounts.get(r.recipeId)!==1).length,
+ const savedSamples=choose(saved,r=>[r.model,r.estimateModel],40),priceSamples=choose(prices,p=>[p.name,p.modelName,p.modelType],4000),menuSamples=choose(menu,p=>[p.name,p.modelName],100);
+ return {adapter:'weavy-saved-history-'+VERSION,savedResultCount:saved.length,lastSeen:n.lastSeen,fileCount:Object.keys(s.files).length,nodeCount:Object.keys(n.nodes).length,runCount:Object.keys(s.runs).length,directRunCount:pending.length,batchReferenceCount:Object.keys(n.batches).length,unresolvedRunCount:pending.filter(r=>fileCounts.get(r.recipeId)!==1).length,
   runSamples:pending.slice(-30).map(r=>({...r,outputs:(r.outputs||[]).slice(0,10).map(o=>({...o,id:anon(o.id),batchId:anon(o.batchId)})),recipeId:anon(r.recipeId),nodeRunId:anon(r.nodeRunId),nodeId:anon(r.nodeId),recipeRunId:anon(r.recipeRunId),batchId:anon(r.batchId)})),
   savedSamples:savedSamples.map(r=>({recipeId:anon(r.recipeId),nodeId:anon(r.nodeId),batchId:anon(r.batchId),model:r.model,estimateModel:r.estimateModel,status:r.status,createdAt:r.createdAt,parameters:r.parameters,output:{...r.output,id:anon(r.output.id),batchId:anon(r.output.batchId)}})),savedSamplesOmitted:Math.max(0,saved.length-savedSamples.length),
   priceCount:prices.length,priceSamples,priceSamplesOmitted:Math.max(0,prices.length-priceSamples.length),menuPriceCount:menu.length,menuPriceSamples:menuSamples.map(p=>({...p,id:anon(p.id)})),menuPriceSamplesOmitted:Math.max(0,menu.length-menuSamples.length),modelShapes:n.modelShapes};

@@ -19,7 +19,7 @@ test('request template retains observed route words and identity placeholders, n
 test('native projection does not mutate the synthetic source history',()=>{const before=structuredClone(history);nativeProjection(history);assert.deepEqual(history,before);});
 test('diagnostics retain a late relevant price beyond the old first-25 sample and disclose omissions',()=>{
  const s=initial(),prices=Array.from({length:520},(_,i)=>({name:'Synthetic model '+i,modelName:'model-'+i,credits:1}));prices.push({name:'Late desired model',modelName:'vendor/desired-model/edit',credits:12});
- ingestNative(s,nativeProjection({prices}));const d=nativeDiagnostics(s,{focusModels:['vendor/desired-model/edit']});assert.equal(d.priceCount,521);assert.equal(d.priceSamples.length,500);assert.equal(d.priceSamplesOmitted,21);assert.equal(d.priceSamples[0].modelName,'vendor/desired-model/edit');
+ ingestNative(s,nativeProjection({prices}));const d=nativeDiagnostics(s,{focusModels:['vendor/desired-model/edit']});assert.equal(d.priceCount,521);assert.equal(d.priceSamples.length,521);assert.equal(d.priceSamplesOmitted,0);assert.equal(d.priceSamples[0].modelName,'vendor/desired-model/edit');
 });
 test('diagnostic saved samples include unresolved families instead of only the last repeated model',()=>{
  const s=initial(),n={...file,nodes:[{id:'focus-node',isModel:true,data:{name:'Synthetic Focus',generations:[{id:'private-output-focus',batchId:'private-focus-batch',input:{model:'Synthetic Focus'}}]}},{id:'many-node',isModel:true,data:{name:'Recraft V3',generations:Array.from({length:55},(_,i)=>({id:'private-output-'+i,batchId:'private-batch-'+i,input:{model:'Recraft V3'}}))}}]};

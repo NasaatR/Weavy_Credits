@@ -58,3 +58,7 @@ test('node context ranks a generic label but an explicit new search takes preced
 test('an absent model family still warns instead of implying the first option is a match',()=>{
  const selected=[],h=setup({suggestedFor:'Unlisted text model',onSelect:async v=>selected.push(v)});h.input.onfocus();assert.match(h.box.querySelector('[aria-live]').textContent,/Точного совпадения нет/);key(h.input,'Enter');assert.deepEqual(selected,[]);
 });
+test('large catalogues keep a bounded menu while an exact model beyond the initial window stays searchable',async()=>{
+ const selected=[],choices=Array.from({length:1000},(_,i)=>({name:'Model '+String(i).padStart(4,'0'),model:'model-'+i})),h=setup({entries:choices,onSelect:async v=>selected.push(v)});
+ h.input.onfocus();assert.equal(h.list.querySelectorAll('[role=option]').length,80);h.input.value='model-999';h.input.oninput();assert.equal(h.list.querySelector('.model-option-name').textContent,'Model 0999');key(h.input,'Enter');await tick();assert.deepEqual(selected,['model-999']);
+});

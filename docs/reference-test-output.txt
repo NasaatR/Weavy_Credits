@@ -1,32 +1,32 @@
 npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 
-> weavy-credits@1.7.0 test:reference
+> weavy-credits@1.8.0 test:reference
 > node --test tests/reference/tests/*.test.js
 
 Accuracy and large-project tests passed.
-✔ tests/reference/tests/accuracy-large.test.js (1515.644355ms)
+✔ tests/reference/tests/accuracy-large.test.js (1392.315898ms)
 All analyzer tests passed.
 Extended analyzer tests passed.
 Diagnostics and report export tests passed.
 Persistence and grouped-report tests passed.
-✔ tests/reference/tests/analyzer.test.js (193.806414ms)
+✔ tests/reference/tests/analyzer.test.js (181.98316ms)
 Diagnostic-shape integration test passed.
-✔ tests/reference/tests/diagnostic-shape.test.js (199.488706ms)
+✔ tests/reference/tests/diagnostic-shape.test.js (184.246478ms)
 GPT Image 2 model-family and Quality regression tests passed.
-✔ tests/reference/tests/gpt2-quality-regression.test.js (205.607511ms)
+✔ tests/reference/tests/gpt2-quality-regression.test.js (211.711554ms)
 Hook + analyzer end-to-end integration test passed.
-✔ tests/reference/tests/hook.test.js (232.748557ms)
+✔ tests/reference/tests/hook.test.js (230.655843ms)
 Mixed-model priority, alias-map, filename, and state migration tests passed.
-✔ tests/reference/tests/mixed-model-priority.test.js (201.52286ms)
+✔ tests/reference/tests/mixed-model-priority.test.js (228.356832ms)
 Model wrapper resolution regression tests passed.
 Large wrapper and overwrite-protection tests passed.
-✔ tests/reference/tests/model-resolution.test.js (309.459324ms)
+✔ tests/reference/tests/model-resolution.test.js (372.949632ms)
 GPT Image 2 and Nano Banana pricing tests passed.
-✔ tests/reference/tests/pricing-v014.test.js (426.936698ms)
+✔ tests/reference/tests/pricing-v014.test.js (163.137575ms)
 0.8 pricing, USD and collapsed-drag regression tests passed.
-✔ tests/reference/tests/pricing-v080.test.js (135.329433ms)
+✔ tests/reference/tests/pricing-v080.test.js (141.121608ms)
 SwitchX, live registry and visible-price fallback tests passed.
-✔ tests/reference/tests/switchx-live-registry.test.js (207.867009ms)
+✔ tests/reference/tests/switchx-live-registry.test.js (176.769108ms)
 ℹ tests 10
 ℹ suites 0
 ℹ pass 10
@@ -34,4 +34,4 @@ SwitchX, live registry and visible-price fallback tests passed.
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1528.168679
+ℹ duration_ms 1410.922636

@@ -98,7 +98,7 @@ test('many unknown nodes stay searchable and the full model list remains availab
  state.runs={};addRuns(state,Array.from({length:200},(_,i)=>({workspaceId:'w',fileId:'f',runId:'large-'+i,nodeId:'node-'+i,nodeName:'Unknown node '+i,model:'Imported '+i,status:'completed',resultCount:1,native:{savedHistory:true}})));
  await click('Данные');await click('Обновить');await click('Отчёт');await click('По нодам');assert.equal(document.querySelectorAll('.model-fix').length,6);assert.equal(document.querySelectorAll('#rows>.row').length,150);
  const search=document.querySelector('[name=fixesSearch]');search.value='node 199';search.oninput();assert.equal(document.querySelectorAll('.model-fix').length,1);assert.ok(document.querySelector('.model-fix').textContent.includes('Imported 199'));
- const picker=document.querySelector('.model-fix [role=combobox]');picker.onfocus();const names=[...document.querySelectorAll('.model-fix .model-option-name')].map(n=>n.textContent);assert.ok(names.includes('Seedream V5 Edit'));assert.ok(names.length>=188);picker.onblur();search.value='';search.oninput();
+ const picker=document.querySelector('.model-fix [role=combobox]');picker.onfocus();const names=[...document.querySelectorAll('.model-fix .model-option-name')].map(n=>n.textContent);assert.ok(names.length<=80);picker.value='Seedream V5 Edit';picker.oninput();assert.equal(document.querySelector('.model-fix .model-option-name').textContent,'Seedream V5 Edit');picker.onblur();search.value='';search.oninput();
 });
 test('background history updates do not close the inline model search while typing',async()=>{
  const search=document.querySelector('.model-fix [role=combobox]');search.onfocus();search.value='nano banana';search.oninput();listeners[0]({type:'changed'});await new Promise(r=>nativeTimeout(r,210));
@@ -110,9 +110,9 @@ test('matching names from several nodes share one visible picker and one selecti
  await click('Данные');await click('Обновить');await click('Отчёт');assert.equal(document.querySelectorAll('.model-fix').length,1);const box=document.querySelector('.model-fix');assert.match(box.textContent,/Нод: 2 · генераций: 2/);assert.match(box.textContent,/во всех сохранённых файлах/i);assert.match(box.textContent,/нод: 3/i);
  const search=box.querySelector('[role=combobox]');search.onfocus();search.value='Recraft V3';search.oninput();box.querySelector('[role=option]').click();await tick();assert.equal(messages.filter(m=>m.type==='assignModel').at(-1).scope,'name');assert.equal(document.querySelector('.total').firstChild.textContent,'≈ 10');assert.equal(state.modelAssignments[modelAssignmentKey(state.runs['["w2","common-c"]'],'name')],'Recraft V3');
 });
-test('old Seedream hint is priced automatically and unrelated minor version is offered similar models first',async()=>{
+test('old Seedream hint is priced while a newer observed version remains discoverable without inheriting its price',async()=>{
  state.runs={};state.modelAssignments={};addRuns(state,[{workspaceId:'w',fileId:'f',runId:'seedream-known',nodeId:'seedream-node',status:'completed',resultCount:1,native:{savedHistory:true,modelHint:'Seedream V5.0 Edit'}},{workspaceId:'w',fileId:'f',runId:'seedream-new',nodeId:'seedream-new-node',model:'Seedream V5.1 Edit',status:'completed',resultCount:1,native:{savedHistory:true}}]);
- await click('Данные');await click('Обновить');await click('Отчёт');assert.equal(document.querySelector('.total').firstChild.textContent,'≈ 4');assert.equal(document.querySelectorAll('.model-fix').length,1);const input=document.querySelector('.model-fix [role=combobox]');input.onfocus();assert.equal(document.querySelector('.model-fix .model-option-name').textContent,'Seedream V5 Edit');assert.match(document.querySelector('.model-fix [aria-live]').textContent,/выберите/);assert.deepEqual(state.modelAssignments,{});input.onblur();
+ await click('Данные');await click('Обновить');await click('Отчёт');assert.equal(document.querySelector('.total').firstChild.textContent,'≈ 4');assert.equal(document.querySelectorAll('.model-fix').length,1);const input=document.querySelector('.model-fix [role=combobox]');input.onfocus();assert.equal(document.querySelector('.model-fix .model-option-name').textContent,'Seedream V5.1 Edit');assert.match(document.querySelector('.model-fix [aria-live]').textContent,/тариф Weavy не получен/);assert.deepEqual(state.modelAssignments,{});input.onblur();
 });
 test('catalog finds formatted model IDs and retains derived variants in the official-source filter',async()=>{
  await click('Тарифы моделей');const search=document.querySelector('[name=catalogBrowse]');search.value='sora_2_pro';search.oninput();
@@ -127,8 +127,8 @@ test('conflicting historical model evidence asks for one generation while source
 });
 test('catalog pagination reaches every entry and resets when searching',async()=>{
  await click('Тарифы моделей');const source=document.querySelector('[aria-label="Источник тарифа"]');source.value='all';source.onchange();const search=document.querySelector('[name=catalogBrowse]');search.value='';search.oninput();
- assert.equal(document.querySelectorAll('.catalog-item').length,150);document.querySelector('.catalog-list .load-more').click();
- assert.equal(document.querySelectorAll('.catalog-item').length,catalogEntries().length+state.rates.length);assert.equal(document.querySelector('.catalog-list .load-more'),null);
+ assert.equal(document.querySelectorAll('.catalog-item').length,150);while(document.querySelector('.catalog-list .load-more'))document.querySelector('.catalog-list .load-more').click();
+ assert.ok(document.querySelectorAll('.catalog-item').length>=catalogEntries().length+state.rates.length);assert.equal(document.querySelector('.catalog-list .load-more'),null);
  search.value='seedream';search.oninput();assert.ok(document.querySelectorAll('.catalog-item').length<150);search.value='';search.oninput();assert.equal(document.querySelectorAll('.catalog-item').length,150);
 });
 test('report pagination exposes groups and generations beyond the first page',async()=>{
@@ -142,4 +142,11 @@ test('compact disclosure controls retain calculation facts and selected file cou
  assert.equal(document.querySelector('.calculation-details').hasAttribute('open'),false);assert.match(document.querySelector('.calculation-details').textContent,/История: частичная/);
  assert.match(document.querySelector('.file-picker summary').textContent,/1 из/);assert.ok(document.querySelector('.file-picker .file input').checked);
  await click('Настройки');for(const a of document.querySelectorAll('.settings-links a'))assert.ok(document.querySelector(a.getAttribute('href')));
+});
+
+test('Any LLM models are searchable in the catalogue and their missing tariffs are never shown as zero',async()=>{
+ state.runs={};state.modelAssignments={};addRuns(state,[{workspaceId:'w',fileId:'f',runId:'text-model',nodeId:'any-llm',nodeName:'Any LLM',model:'anthropic/claude-opus-5',status:'completed',resultCount:1,native:{savedHistory:true}}]);
+ await click('Данные');await click('Обновить');await click('Отчёт');const box=document.querySelector('.model-fix'),picker=box.querySelector('[role=combobox]');picker.onfocus();picker.value='anthropic/claude-opus-5';picker.oninput();assert.match(box.querySelector('.model-option-name').textContent,/Claude Opus 5/);assert.match(box.querySelector('[aria-live]').textContent,/тариф Weavy не получен/);picker.onblur();
+ await click('Тарифы моделей');const source=document.querySelector('[aria-label="Источник тарифа"]');source.value='llm';source.onchange();const search=document.querySelector('[name=catalogBrowse]');for(const query of ['Any LLM','AnyLLM']){search.value=query;search.oninput();assert.ok(document.querySelectorAll('.catalog-item').length>0);}search.value='anthropic/claude-opus-5';search.oninput();const row=document.querySelector('.catalog-item');assert.match(row.querySelector('h3').textContent,/Claude Opus 5/);assert.equal(row.querySelector('.catalog-price').textContent,'Цена не получена');
+ [...row.querySelectorAll('button')].find(b=>b.textContent==='✏️ Изменить').click();await tick();assert.equal(document.querySelector('[name=unit]').value,'run');assert.equal(document.querySelector('[name=rate]').value,'');document.querySelector('#rateDialog').close();
 });

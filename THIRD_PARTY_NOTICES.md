@@ -15,3 +15,5 @@ Development dependencies are installed through npm and are not copied into the e
 Their installed packages and transitive dependencies retain their own notices. `package-lock.json` pins the build/test dependency graph; `node_modules` is excluded from source control and the loadable extension.
 
 Catalog data preserves source URLs and check dates in `docs/official-rows.json`, `docs/catalog-data.json` and `extension/catalog-data.js`. Published price information is not a claim of account billing accuracy or ownership of provider names/trademarks. This is an independent project, not an official Weavy/Figma extension.
+
+The text-model directory in `docs/llm-models.json` contains public model names, IDs and modality facts from https://openrouter.ai/api/v1/models (checked 2026-10-27). Provider prices and descriptions are not included. Directory presence does not establish availability or credit pricing in Weavy.

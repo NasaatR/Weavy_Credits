@@ -1,6 +1,7 @@
 import {APPEARANCE} from './appearance.js';
 import {appearanceSections,applyPageAppearance} from './appearance-ui.js';
 import {modelPicker} from './model-picker.js';
+import {availableModels,modelValue} from './model-list.js';
 import {VERSION} from './version.js';
 import {diagnosticsCopy} from './diagnostics-copy.js';
 import {modelIdentity,compareModelNames} from './model-matching.js';
@@ -96,14 +97,14 @@ function unknownPanel(sum){
 }
 function needsModel(r){
  if(r.cost.kind!=='unknown'||r.eventConflict||r.snapshotConflict||r.parameters.pricingConflict||r.events?.some(e=>e.kind==='refund')||r.native?.refundedAt||!['completed','succeeded','success'].includes(r.status.toLowerCase()))return false;
- const model=canonicalModelName(modelOf(r));return r.cost.code==='model-conflict'||!catalogEntry(model)&&!state.rates.some(t=>modelIdentity(canonicalModelName(t.model))===modelIdentity(model));
+ const model=canonicalModelName(modelOf(r));return r.cost.code==='model-conflict'||(!catalogEntry(model)||catalogEntry(model).kind==='unknown')&&!state.rates.some(t=>modelIdentity(canonicalModelName(t.model))===modelIdentity(model));
 }
-let modelChoicesRates=null,modelChoicesCache=[];
+let modelChoicesState=null,modelChoicesCache=[];
 function modelChoices(){
- if(modelChoicesRates===state.rates)return modelChoicesCache;
- const choices=new Map(catalogEntries().map(e=>[e.name,{name:e.name,model:e.name,aliases:[...(e.aliases||[])],hint:e.kind==='formula'?'Цена по параметрам':e.min==null?'Цена требует проверки':range(e.min,e.max)+' кр. / результат'}]));
+ if(modelChoicesState===state)return modelChoicesCache;
+ const choices=new Map(availableModels(state).map(e=>[modelValue(e),{name:e.name,model:modelValue(e),category:e.category,searchTerms:e.category==='llm'?['Any LLM','AnyLLM','Large Language Model','Текстовая модель']:[],hasTariff:e.kind!=='unknown',aliases:[...(e.aliases||[])],hint:e.kind==='formula'?'Цена по параметрам':e.min==null?(e.category==='llm'?'LLM · ':'')+'Тариф Weavy не получен'+(e.quoteMin!=null?' · текущий ориентир '+range(e.quoteMin,e.quoteMax)+' кр.':''):range(e.min,e.max)+' кр. / результат'}]));
  for(const t of state.rates){const model=canonicalModelName(t.model),old=choices.get(model);if(old){old.aliases.push(t.model,t.label);old.hint='Мой тариф / каталог';}else choices.set(model,{name:t.label===t.model?model:t.label+' · '+model,model,aliases:[t.model,t.label],hint:'Мой тариф: '+fmt(t.rate)+' кр. / '+unitLabel(t.unit)});}
- modelChoicesRates=state.rates;modelChoicesCache=[...choices.values()].sort((a,b)=>compareModelNames(a.name,b.name));return modelChoicesCache;
+ modelChoicesState=state;modelChoicesCache=[...choices.values()].sort((a,b)=>compareModelNames(a.name,b.name));return modelChoicesCache;
 }
 function inlineModel(r,scope='run',area='rows'){
  const k=modelAssignmentKey(r,scope),picked=modelAssignment(r,state.modelAssignments),value=state.modelAssignments?.[k]||(picked?.scope===scope?picked.model:''),detected=canonicalModelName(modelOf(r)),picker=modelPicker({entries:modelChoices(),value,fallbackValue:!needsModel(r)?detected:'',suggestionHints:modelSuggestionHints(r),suggestedFor:!r.model?r.native?.outputs?.find(o=>o.model)?.model||sourceModelName(r):sourceModelName(r),
@@ -159,17 +160,17 @@ function compareRows(a,b){
 function renderCatalog(){
  main.append(el('h2',{},'🏷️ Тарифы моделей'),el('p',{class:'small muted catalog-help'},'Цены генераций в кредитах. Уточнить модель неподсчитанной ноды можно прямо в отчёте.'),actions(btn('Добавить тариф',()=>openCustom(''),'primary'),btn('Импорт каталога',importCatalog)));
  const search=input('catalogBrowse',catalogSearch,'search',{placeholder:'Название модели или алиас: GPT, Nano Banana, Kling…','aria-label':'Поиск тарифов'});
- const filters=el('select',{'aria-label':'Источник тарифа'},...[[ 'all','Все источники'],['official-help','Справка Weavy'],['reference-only','Предоставленный каталог'],['custom','Мои тарифы']].map(([v,t])=>el('option',{value:v},t)));filters.value=catalogFilter;
+ const filters=el('select',{'aria-label':'Источник тарифа'},...[[ 'all','Все источники'],['official-help','Справка Weavy'],['reference-only','Предоставленный каталог'],['llm','Текстовые модели (LLM)'],['weavy-observed','Из Weavy'],['custom','Мои тарифы']].map(([v,t])=>el('option',{value:v},t)));filters.value=catalogFilter;
  const sorting=sortControl(catalogSort,v=>{catalogSort=v;draw();},[['name','Название · А–Я'],['name-desc','Название · Я–А'],['price','Цена · дешевле'],['price-desc','Цена · дороже']]);
  const count=el('p',{class:'catalog-count'}),list=el('div',{class:'catalog-list'});
  const draw=(keepScroll=false)=>{
   catalogSearch=search.value;catalogFilter=filters.value;const q=catalogSearch.trim().toLowerCase();
   const pageKey=JSON.stringify([q,catalogFilter,catalogSort]),top=keepScroll===true?list.scrollTop:0;if(pageKey!==catalogPageKey){catalogPageKey=pageKey;catalogPageLimit=150;}
-  const entries=[...catalogEntries().map(e=>({...e,custom:false})),...state.rates.map(r=>({name:r.label||r.model,model:r.model,min:r.rate,max:r.rate,priceText:fmt(r.rate)+' / '+unitLabel(r.unit),custom:true,rate:r,provenance:'custom',aliases:[r.model]}))]
-   .filter(e=>(catalogFilter==='all'||e.provenance===catalogFilter||catalogFilter==='official-help'&&e.provenance?.startsWith('official-help'))&&((e.name+' '+(e.aliases||[]).join(' ')).toLowerCase().includes(q)||modelIdentity(e.name+' '+(e.aliases||[]).join(' ')).includes(modelIdentity(q))))
+  const entries=[...availableModels(state).map(e=>({...e,custom:false})),...state.rates.map(r=>({name:r.label||r.model,model:r.model,min:r.rate,max:r.rate,priceText:fmt(r.rate)+' / '+unitLabel(r.unit),custom:true,rate:r,provenance:'custom',aliases:[r.model]}))]
+   .filter(e=>(catalogFilter==='all'||catalogFilter==='llm'&&e.category==='llm'||e.provenance===catalogFilter||catalogFilter==='official-help'&&e.provenance?.startsWith('official-help'))&&((e.name+' '+(e.aliases||[]).join(' ')+(e.category==='llm'?' Any LLM AnyLLM Large Language Model Текстовая модель':'')).toLowerCase().includes(q)||modelIdentity(e.name+' '+(e.aliases||[]).join(' ')+(e.category==='llm'?' Any LLM AnyLLM Large Language Model Текстовая модель':'')).includes(modelIdentity(q))))
    .sort((a,b)=>catalogSort==='price'||catalogSort==='price-desc'?(catalogSort==='price-desc'?-1:1)*((a.min??Infinity)-(b.min??Infinity)):(catalogSort==='name-desc'?-1:1)*a.name.localeCompare(b.name,'ru',{numeric:true,sensitivity:'base'}));
-  count.textContent='Найдено '+entries.length+' · каталог '+catalogEntries().length+' моделей и вариантов';list.replaceChildren();
-  for(const e of entries.slice(0,catalogPageLimit))list.append(el('article',{class:'row catalog-item'},el('div',{},el('h3',{},e.name),el('div',{class:'catalog-meta'},el('span',{class:'badge'},e.custom?'Мой тариф':e.provenance?.startsWith('official-help')?'Справка Weavy':'Каталог'),e.custom?unitLabel(e.rate.unit):e.kind==='formula'?'Формула по параметрам':e.min!==e.max?'Зависит от параметров':'За результат')),el('div',{},el('div',{class:'catalog-price'},e.custom?e.priceText+' кр.':e.min==null?'По формуле':range(e.min,e.max)+' кр.'),actions(btn('✏️ Изменить',()=>openCustom(e.model||e.name,e.custom?e.rate:null)),...(!e.custom?[btn('Правила',()=>openRate(e.name))]:[])))));
+  count.textContent='Найдено '+entries.length+' · доступно '+availableModels(state).length+' моделей и вариантов';list.replaceChildren();
+  for(const e of entries.slice(0,catalogPageLimit))list.append(el('article',{class:'row catalog-item'},el('div',{},el('h3',{},e.name),el('div',{class:'catalog-meta'},el('span',{class:'badge'},e.custom?'Мой тариф':e.provenance?.startsWith('official-help')?'Справка Weavy':e.category==='llm'?'LLM':e.provenance==='weavy-observed'?'Из Weavy':'Каталог'),e.custom?unitLabel(e.rate.unit):e.kind==='unknown'?'Нужен тариф Weavy':e.kind==='formula'?'Формула по параметрам':e.min!==e.max?'Зависит от параметров':'За результат')),el('div',{},el('div',{class:'catalog-price'},e.custom?e.priceText+' кр.':e.kind==='unknown'?'Цена не получена':e.min==null?'По формуле':range(e.min,e.max)+' кр.'),actions(btn('✏️ Изменить',()=>openCustom(e.model||e.name,e.custom?e.rate:null)),...(!e.custom?[btn('Правила',()=>openRate(modelValue(e)))]:[])))));
   if(entries.length>catalogPageLimit)list.append(btn('Показать ещё '+Math.min(150,entries.length-catalogPageLimit),()=>{catalogPageLimit+=150;draw(true);},'load-more'));if(!entries.length)list.append(note('Ничего не найдено. Измените запрос или источник.'));list.scrollTop=top;
  };
  search.oninput=draw;filters.onchange=draw;main.append(el('div',{class:'toolbar'},search,sorting),filters,count,list,el('details',{},el('summary',{},'📦 Импорт и экспорт'),actions(btn('Экспорт своих тарифов',()=>download('weavy-credits-rates.json',{schema:1,rates:state.rates})),btn('Скачать встроенный каталог',()=>download('weavy-credits-catalog.json',{version:CATALOG_VERSION,entries:catalogEntries()})))),el('p',{class:'small muted'},'Цена в Weavy может зависеть от разрешения, длительности и других параметров. Каталог — источник расчёта, не подтверждение списания.'));draw();
@@ -228,17 +229,17 @@ function openRate(model){
  const d=$('#rateDialog'),body=$('#rateBody');body.replaceChildren(el('h3',{},'Взять тариф из каталога'));
  const modelInput=input('model',model||'','text',{placeholder:'Точное название модели'});
  const search=input('catalogSearch','','search',{placeholder:'Поиск: Seedream, Nano Banana, Kling…'});
- $('#dialog-title').textContent='Тариф модели';const entries=[...catalogEntries()].sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true})),custom=[...new Set(state.rates.map(r=>r.model))].filter(n=>!entries.some(e=>e.name===n));
+ $('#dialog-title').textContent='Тариф модели';const entries=[...availableModels(state)].sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true})),custom=[...new Set(state.rates.map(r=>r.model))].filter(n=>!entries.some(e=>e.name===n));
  const select=el('select',{name:'catalogModel','aria-label':'Модель в каталоге'}),info=el('div',{class:'card small'});
  const label=e=>e.kind==='formula'?e.name+' · формула':e.name+(e.provenance==='reference-only'?' · не перепроверено':'')+' · '+(e.min==null?'цена не подтверждена':range(e.min,e.max)+' кр.');
- const details=()=>{info.replaceChildren();const e=catalogEntry(select.value);if(!e){info.append('Ваши ручные тарифы применяются по дате и параметрам.');return;}
-  info.append(el('strong',{},e.name),el('p',{},e.priceText+' кредитов · условия из источника'),el('p',{class:'muted'},e.provenance?.startsWith('official-help')?'Справка Weavy · опубликовано '+e.publishedAt+' · проверено '+e.checkedAt:'Предыдущий каталог: цена не перепроверена на Weavy'));
+ const details=()=>{info.replaceChildren();const e=availableModels(state).find(e=>modelValue(e)===select.value);if(!e){info.append('Ваши ручные тарифы применяются по дате и параметрам.');return;}
+  info.append(el('strong',{},e.name),el('p',{},e.kind==='unknown'?'Модель распознана. Введите подтверждённый тариф Weavy; цены API других сервисов здесь не применяются.':e.priceText+' кредитов · условия из источника'),el('p',{class:'muted'},e.provenance?.startsWith('official-help')?'Справка Weavy · опубликовано '+e.publishedAt+' · проверено '+e.checkedAt:e.provenance==='model-directory'?'Справочник названий LLM; наличие и цена в Weavy не подтверждены':e.provenance==='weavy-observed'?'Модель из наблюдаемых данных Weavy':'Предыдущий каталог: цена не перепроверена на Weavy'));
   if(e.parameterRules)info.append(el('p',{class:'muted'},'Дополнительные правила по параметрам: '+e.parameterRules.source+' · '+e.parameterRules.sourceDate+'. Это расчётное правило, не подтверждение списания.'),el('div',{class:'tariff-rules'},...e.parameterRules.options.map(o=>el('div',{},Object.entries(o.when).map(([k,v])=>k+': '+v).join(' · ')+' → '+o.credits+' кр.'))));
   if(e.options)info.append(el('div',{class:'tariff-rules'},...e.options.map(o=>el('div',{},Object.entries(o.when||{}).map(([k,v])=>k+': '+v).join(' · ')+' → '+o.credits+' кр.'))));
   if(e.source?.startsWith('https://'))info.append(el('a',{href:e.source,target:'_blank',rel:'noreferrer'},'Открыть источник'));
   if(e.previousPrice)info.append(el('p',{class:'warn'},'Справка и предоставленные подробные правила различаются. Подробное правило применяется только внутри опубликованного диапазона. Если старые цены противоречат справке, остаётся диапазон и причина расхождения.'));
  };
- const fill=()=>{const prev=select.value||state.mappings[model]||historicalModel({model})||model||'';const q=search.value.toLowerCase();const filtered=entries.filter(e=>(e.name+' '+e.aliases.join(' ')).toLowerCase().includes(q));select.replaceChildren(el('option',{value:''},'Выберите модель каталога'),...filtered.map(e=>el('option',{value:e.name},label(e))),...custom.filter(n=>n.toLowerCase().includes(q)).map(n=>el('option',{value:n},n+' · свой тариф')));select.value=prev;details();};
+ const fill=()=>{const prev=select.value||state.mappings[model]||historicalModel({model})||model||'';const q=search.value.toLowerCase();const filtered=entries.filter(e=>(e.name+' '+e.aliases.join(' ')).toLowerCase().includes(q));select.replaceChildren(el('option',{value:''},'Выберите модель каталога'),...filtered.map(e=>el('option',{value:modelValue(e)},label(e))),...custom.filter(n=>n.toLowerCase().includes(q)).map(n=>el('option',{value:n},n+' · свой тариф')));select.value=prev;details();};
  search.oninput=fill;select.onchange=details;fill();
  body.append(field('Модель в вашем отчёте',modelInput),field('Поиск в каталоге · '+entries.length+' моделей и вариантов',search),field('Модель в каталоге',select),info,
   el('p',{class:'small muted'},'Выбранное правило используется для оценки. Сохранённые параметры определяют вариант цены; если их не хватает, будет диапазон.'),
@@ -273,8 +274,8 @@ function moneyControls(s){
  return box;
 }
 function openCustom(model,old=null){
- const d=$('#rateDialog'),body=$('#rateBody'),today=new Date().toISOString().slice(0,16),builtin=catalogEntry(model);$('#dialog-title').textContent=old?'✏️ Изменить цену модели':'✏️ Своя цена модели';body.replaceChildren();
- const form=el('form'),units=el('select',{name:'unit'},...['result','run','second','inputTokens','outputTokens','inputCount'].map(u=>el('option',{value:u},unitLabel(u))));units.value=old?.unit||(builtin?'result':'run');
+ const d=$('#rateDialog'),body=$('#rateBody'),today=new Date().toISOString().slice(0,16),builtin=catalogEntry(model)||availableModels(state).find(e=>modelValue(e)===model);$('#dialog-title').textContent=old?'✏️ Изменить цену модели':'✏️ Своя цена модели';body.replaceChildren();
+ const form=el('form'),units=el('select',{name:'unit'},...['result','run','second','inputTokens','outputTokens','inputCount'].map(u=>el('option',{value:u},unitLabel(u))));units.value=old?.unit||(builtin&&builtin.category!=='llm'?'result':'run');
  const modelInput=input('model',old?.model||model,'text',{required:''}),rate=input('rate',old?.rate??(builtin?.min===builtin?.max?builtin?.min:null),'number',{min:0,step:'any',required:''}),label=input('label',old?.label||model,'text',{placeholder:'Название тарифа в списке'});
  form.append(el('p',{class:'small muted'},'Эта цена заменит расчёт по каталогу для подходящих запусков. Фактические списания останутся прежними.'),field('Модель',modelInput),el('div',{class:'grid2'},field('Цена, кредиты',rate),field('За что списывается',units)));
  const resolution=input('resolution',old?.conditions?.resolution||'','text',{placeholder:'Любое · либо 1080p, 2K…'}),quality=el('select',{name:'quality'},el('option',{value:''},'Любое качество'),...['low','medium','high'].map(q=>el('option',{value:q},{low:'Low · низкое',medium:'Medium · среднее',high:'High · высокое'}[q])));quality.value=old?.conditions?.quality||'';

@@ -6,7 +6,7 @@ Chrome Manifest V3 extension for estimating credit usage from saved Weavy genera
 
 ## Download and install
 
-Version **1.7.0**, Chrome **116+**. [Download the ready-to-load ZIP](https://github.com/NasaatR/Weavy_Credits/raw/refs/heads/main/downloads/WEAVY-CREDITS-1.7.0.zip). The archive contains **`WEAVY-CREDITS-1.7.0/extension/`**. It is a versioned download stored in this repository, not a signed Chrome Web Store package. No build tools are needed to install it.
+Version **1.8.0**, Chrome **116+**. [Download the ready-to-load ZIP](https://github.com/NasaatR/Weavy_Credits/raw/refs/heads/main/downloads/WEAVY-CREDITS-1.8.0.zip). The archive contains **`WEAVY-CREDITS-1.8.0/extension/`**. It is a versioned download stored in this repository, not a signed Chrome Web Store package. No build tools are needed to install it. The ZIP contains only runtime resources, installation notes, provenance notices and integrity hashes.
 
 1. Extract the archive completely.
 2. Open `chrome://extensions`, enable Developer mode and choose **Load unpacked**.
@@ -17,13 +17,19 @@ For example, `Seedream V5.0 Edit` resolves to the catalog's `Seedream V5 Edit`. 
 
 **Updating:** export a backup in Settings, replace all files in the existing extension directory and click Reload in `chrome://extensions`. Keep the installed extension and its original directory to retain local history. Reload project tabs to capture previously missing fields. A new paid generation is unnecessary. Uninstalling removes extension-local data; keep a backup first.
 
-## What changed in 1.7.0
+## What changed in 1.8.0
 
-- One headline credit total in the dock, report and run groups. Bounded estimates use their midpoint; known debits are included once. Original bounds, sources and confirmed amounts remain in collapsed details and the audit. A midpoint is a display convention, not a statistically most likely charge.
-- Model suggestions use the historical label, node service/model and node name. Weak similarities no longer fall back immediately to alphabetical order; shared provider prefixes do not boost unrelated models. Typing a different model takes precedence over context. Suggestions never silently replace a distinct version or mode.
-- Verified `fal-ai/flux-2-max/edit` alias for the existing Flux 2 Max edit tariff. The separate text-to-image endpoint does not inherit that edit price.
-- Diagnostic samples prioritize unresolved model families and include up to 500 observed price rows rather than the first 25. Total/omitted counts and saved-result versus detailed-run counts make capture limits visible. The extension does not invent missing charges, dates or historical parameters.
-- Copy diagnostics remains one click in Data, with a manual JSON/retry/download fallback if clipboard access fails.
+- Any LLM: 360 text model identities, including Claude Opus 5, plus models observed in your Weavy data. A text-model filter, provider-ID search and explicit missing-tariff labels make them selectable. The external model directory does not assert Weavy availability or credit prices. Existing manual corrections remain in effect.
+- Typed LLM selections and explicit token-usage counters are recognized. Token tariffs use actual counters; missing counters and Weavy prices stay unknown. Current price quotes are shown as hints, not silently applied to old generations.
+- Stable floating panel: existing controls update in place, same-page refresh keeps context, drag updates use one animation frame and pointer capture, and position is saved once on release. Background updates are deferred during a drag.
+- Menus render up to 80 options, while searching the full inventory. Similarity features are cached. Diagnostics retain up to 4,000 observed price rows and diverse node schemas.
+- Distribution follows the manifest/module resource graph, includes per-file integrity hashes and refuses to overwrite a committed version ZIP with different bytes. Source and audit scripts remain in the repository.
+
+## Package validation and Defender
+
+`node scripts/audit-runtime.mjs` checks local resources, CSP, permissions and dynamic execution patterns. This is a static guard, not an antivirus verdict. The Windows CI job updates Microsoft Defender signatures and scans the distributed ZIP and extracted files, recording the archive hash, engine/signature versions and results. A scan error or unavailable scanner is a failure, never a clean verdict; view the actual [Actions result](https://github.com/NasaatR/Weavy_Credits/actions).
+
+A verdict applies to the scanned bytes and engine/signature versions. Incorrect classifications can be submitted to [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission) as a software developer; Microsoft makes the final determination. Nothing in this extension changes Windows Security settings.
 
 ## Accuracy, permissions and data
 
@@ -31,11 +37,11 @@ The extension reads the available saved history of opened projects, including ol
 
 `sidePanel` opens the report; `storage` holds local history/settings. Host access is limited to `app.weavy.ai` for observation and `www.cbr.ru` for the optional exchange-rate refresh. There is no analytics service or backend. Backups and raw exports can contain project data; inspect them before sharing. The calculation audit replaces identifiers and omits prompts/media/project titles.
 
-**Verification:** 237 extension tests and 10 reference test files on synthetic data. Browser layout and authenticated Weavy billing have not been verified in this environment. The cloud browser cannot reach the local preview server. Full scope and commands: [testing](docs/TESTING.md).
+**Verification:** 252 extension tests and 10 reference test files on synthetic data. Browser layout and authenticated Weavy billing have not been verified in this environment. The cloud browser cannot reach the local preview server. Full scope and commands: [testing](docs/TESTING.md).
 
 ## Development
 
-Node.js 24+, npm. Generated bundles are committed so installation does not depend on npm.
+Node.js 24+, npm. Generated bundles are committed so installation does not depend on npm. Python 3.9+ is used by packaging tests and archive creation.
 
 ```sh
 npm ci

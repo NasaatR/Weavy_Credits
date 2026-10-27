@@ -45,16 +45,18 @@ export function modelPicker({entries,value='',fallbackValue='',suggestedFor='',s
   const q=query.trim().toLocaleLowerCase('ru'),words=q.split(/\s+/).filter(Boolean),normalized=modelIdentity(q).split(' ').filter(Boolean);
   const hints=!q||modelIdentity(q)===modelIdentity(suggestedFor)?suggestionHints:[];
   const ranked=rankModels(entries,q||suggestedFor||value||fallbackValue,hints);
-  matches=[...(value?[automatic]:[]),...ranked].filter(e=>{const hay=(e.name+' '+e.model+' '+(e.aliases||[]).join(' ')).toLocaleLowerCase('ru'),identity=modelIdentity(hay);return !q||words.every(w=>hay.includes(w))||normalized.every(w=>identity.includes(w))||q.length>=3&&e.similarity>=.5;});
+  matches=[...(value?[automatic]:[]),...ranked].filter(e=>{const hay=(e.name+' '+e.model+' '+(e.aliases||[]).join(' ')+' '+(e.searchTerms||[]).join(' ')).toLocaleLowerCase('ru'),identity=modelIdentity(hay);return !q||words.every(w=>hay.includes(w))||normalized.every(w=>identity.includes(w))||q.length>=3&&e.similarity>=.5;});
+  const remaining=Math.max(0,matches.length-80);matches=matches.slice(0,80);
   const matching=findModelMatch(q||suggestedFor,entries);
   status.dataset.state='help';
-  status.textContent=matching.kind==='ambiguous'?'Есть несколько совпадений — какая модель использовалась?':matching.kind==='none'&&(q||suggestedFor||hints.length)?'Точного совпадения нет — выберите модель или уточните поиск.':'';
+  status.textContent=matching.entry?.hasTariff===false?'Модель найдена, но тариф Weavy не получен.':matching.kind==='ambiguous'?'Есть несколько совпадений — какая модель использовалась?':matching.kind==='none'&&(q||suggestedFor||hints.length)?'Точного совпадения нет — выберите модель или уточните поиск.':'';
   list.replaceChildren();options=[];active=-1;search.removeAttribute('aria-activedescendant');
   matches.forEach((entry,i)=>{const opt=make('div',{id:id+'-option-'+i,role:'option','aria-selected':String(entry.model===(value||fallbackValue)),class:'model-option'});
    opt.append(make('span',{class:'model-option-name'},entry.name));if(entry.hint)opt.append(make('small',{},(entry.similarity>=.5&&entry.similarity<1?'Похожее название · ':'')+entry.hint));
    opt.onpointerdown=e=>e.preventDefault();opt.onclick=()=>choose(entry);opt.onpointermove=()=>{if(active!==i)activate(i,false);};list.append(opt);options.push(opt);
   });
   if(!matches.length)list.append(make('p',{class:'small muted'},'Нет такой модели. Попробуйте название или алиас.'));
+  if(remaining)list.append(make('p',{class:'small muted'},'Ещё '+remaining+' моделей — уточните поиск.'));
   if(closeActive&&closeActive!==close)closeActive();closeActive=close;
   list.hidden=false;control.classList.add('is-open');search.setAttribute('aria-expanded','true');
   if(typeof list.showPopover==='function'){list.setAttribute('popover','manual');try{list.showPopover();}catch{list.removeAttribute('popover');}}

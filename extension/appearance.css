@@ -56,3 +56,7 @@
 :is(.dock, #dock-preview-box) .wcr-glyph {display:block;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui;transform:translateY(-1px);pointer-events:none}
 
 .dock .value{font-size:13px;font-weight:600;white-space:nowrap}.dock .muted{font-size:12px;opacity:.65;white-space:nowrap}.dock .sep{height:20px;width:1px;background:var(--wcr-border-color);margin:0 5px}.dock-handle{cursor:grab;font-size:15px;padding:4px}.dock .plan-label{font:11px/1.2 system-ui;white-space:nowrap;margin-left:3px;opacity:.7}#dock-preview-box .value{font-size:13px;font-weight:600}.wcr-glyph{display:block;line-height:1;transform:translateY(-1px);font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui;pointer-events:none}
+
+/* No layout reads/writes for each pointermove; translate is a separate layer. */
+.dock { cursor: grab; }
+.dock.is-dragging { cursor: grabbing; will-change: translate; }

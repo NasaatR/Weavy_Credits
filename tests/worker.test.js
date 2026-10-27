@@ -87,3 +87,8 @@ test('a shared choice preserves generation exceptions even without a node ID',as
  await send({type:'importRuns',runs:[a,b]});await send({type:'assignModel',key:runKey(a),scope:'run',target:'GPT Image 1 Edit'});await send({type:'assignModel',key:runKey(b),scope:'name',target:'Recraft V3'});
  const s=(await send({type:'get'})).state;assert.equal(cost(s.runs[runKey(a)],[],{},s.modelAssignments).credits,8);assert.equal(cost(s.runs[runKey(b)],[],{},s.modelAssignments).credits,5);
 });
+
+test('an observed model can be selected without promoting its current quote to a historical tariff',async()=>{
+ const model='vendor/synthetic-future-text',run=r({runId:'future-text',model:'Unknown text family',events:[],resultCount:1,createdAt:null});await send({type:'importRuns',runs:[run]});await send({type:'capture',native:{prices:[{name:'Synthetic future text',modelName:model,modelType:'anyllm',credits:7}]}},page(11));
+ const reply=await send({type:'assignModel',key:runKey(run),scope:'run',target:model});assert.ok(!reply.error);const s=(await send({type:'get'})).state;assert.equal(s.modelAssignments[modelAssignmentKey(s.runs[runKey(run)])],model);assert.equal(cost(s.runs[runKey(run)],s.rates,s.mappings,s.modelAssignments).kind,'unknown');
+});

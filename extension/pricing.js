@@ -22,7 +22,7 @@ export function historicalModel(value) {
  // let a current node name override an explicit historical input model.
  const unwrap=(v,d=0)=>d<4&&v&&typeof v==='object'&&!Array.isArray(v)&&('value' in v||v.data?.value!==undefined)?unwrap(v.data?.value??v.value,d+1):v;
  const field=(v,k)=>{const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');if(Array.isArray(v)){const p=v.find(p=>norm(Array.isArray(p)?typeof p[0]==='string'?p[0]:p[0]?.id||p[0]?.name:p?.id||p?.name)===norm(k));return Array.isArray(p)?p[1]:p?.value??p?.data?.value;}return v&&typeof v==='object'?Object.entries(v).find(([name])=>norm(name)===norm(k))?.[1]:undefined;};
- const wrapper=v=>typeof v==='string'&&/^(?:fal|replicate|openrouter|openai|google|falimported|anyllm|genericmodel|custommodel|importedmodel)$/.test(v.toLowerCase().replace(/[^a-z0-9]/g,''));
+ const wrapper=v=>typeof v==='string'&&/^(?:fal|replicate|openrouter|openai|google|falimported|anyllm(?:v\d+)?|runanyllm|largelanguagemodel|genericmodel|custommodel|importedmodel)$/.test(v.toLowerCase().replace(/[^a-z0-9]/g,''));
  const resolve=(v,depth=0)=>{
   if(depth>8)return null;
   v=unwrap(v);if(v==null)return null;
@@ -33,8 +33,8 @@ export function historicalModel(value) {
   if(typeof v!=='string'||wrapper(v)||!v.trim()||/^[\d\s.,_-]+$/.test(v))return null;
   return resolvePriceModel(v)?.canonical||null;
  };
- for(const container of [value.input,value.params,value.parameters,value]){
-  for(const k of ['model','modelSlug','modelVersion','providerModel','modelName']){const m=resolve(field(container,k));if(m)return m;}
+ for(const container of [value.input,value.params,value.parameters,value,value.data?.params,value.data?.kind?.parameters]){
+  for(const k of ['model','modelSlug','modelVersion','providerModel','modelName','llmModel','languageModel','selectedModel']){const m=resolve(field(container,k));if(m)return m;}
  }
  for(const v of [value.data?.kind?.model,value.data?.model,value.data?.modelSlug,value.data?.modelName,value.kind?.model]){const m=resolve(v);if(m)return m;}
  // Legacy node identities only. Result/file names and user labels are not models.
@@ -45,7 +45,7 @@ export function historicalModel(value) {
 }
 export function historicalParams(value) {
  const result={};
- const aliases={numimages:'count',numoutputs:'count',outputcount:'count',imagesize:'resolution',videosize:'resolution',outputsize:'resolution',outputresolution:'resolution',generateaudio:'audio',enableaudio:'audio',durationseconds:'duration',durationmilliseconds:'duration',inputcount:'inputCount',inputtokens:'inputTokens',outputtokens:'outputTokens',speed:'mode',tier:'mode',variant:'mode'};
+ const aliases={numimages:'count',numoutputs:'count',outputcount:'count',imagesize:'resolution',videosize:'resolution',outputsize:'resolution',outputresolution:'resolution',generateaudio:'audio',enableaudio:'audio',durationseconds:'duration',durationmilliseconds:'duration',inputcount:'inputCount',inputtokens:'inputTokens',outputtokens:'outputTokens',prompttokens:'inputTokens',completiontokens:'outputTokens',prompttokencount:'inputTokens',candidatestokencount:'outputTokens',speed:'mode',tier:'mode',variant:'mode'};
  const allowed=new Set(['duration','seconds','resolution','quality','count','audio','width','height','fps','steps','mode','inputCount','inputTokens','outputTokens']);
  const unwrap=(v,depth=0)=>depth<4&&v&&typeof v==='object'&&!Array.isArray(v)&&('value' in v||v.data?.value!==undefined)?unwrap(v.data?.value??v.value,depth+1):v;
  const set=(name,value)=>{
@@ -75,7 +75,7 @@ export function historicalParams(value) {
   }}else{
    for(const [k,x]of Object.entries(v))set(k,x);
    if(typeof (v.name||v.id)==='string')set(v.name||v.id,v.value??v.data?.value);
-   for(const k of ['input','params','parameters','settings'])read(v[k],depth+1);
+   for(const k of ['input','params','parameters','settings','usage','usageMetadata','tokenUsage'])read(v[k],depth+1);
   }
  };
  read(value);if(result.duration!==undefined&&result.seconds!==undefined&&result.duration!==result.seconds)result.pricingConflict=true;return result;
@@ -147,6 +147,7 @@ export function priceGap(model,p={}){
  const info=resolvePriceModel(model),e=info?.entry;
  if(p.pricingConflict)return 'Сохранены противоречивые параметры цены';
  if(!e)return 'Не найдено правило для точной модели';
+ if(e.kind==='unknown')return 'Модель распознана; тариф Weavy не получен. Нужна цена за запуск или токены из Weavy';
  if(unsupportedResolution(e,p))return 'Для этого разрешения источник требует отдельный тариф; базовая цена не применяется';
  if(unsupportedDuration(e,p))return 'Источник не подтверждает цену для этой длительности';
  if(conflictingMode(e,p))return 'Режим в названии модели противоречит сохранённым параметрам';

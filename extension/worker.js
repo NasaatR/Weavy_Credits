@@ -1,3 +1,4 @@
+import {availableModels,modelValue} from './model-list.js';
 import {VERSION} from './version.js';
 import {fetchCbrUsd} from './currency.js';
 import {catalogEntry,canonicalModelName} from './pricing.js';
@@ -48,7 +49,7 @@ async function route(m,sender){
   const run=s.runs[m.key];if(!run)throw Error('Генерация не найдена');
   if(!['run','node','name'].includes(m.scope)||m.scope==='node'&&!run.nodeId)throw Error('Нет точного ID ноды для уточнения');
   const target=m.target===null?null:canonicalModelName(id(m.target));
-  if(target&&!catalogEntry(target)&&!s.rates.some(r=>canonicalModelName(r.model)===target))throw Error('Выберите модель из каталога или своего тарифа');
+  if(target&&!availableModels(s).some(e=>modelValue(e)===target)&&!s.rates.some(r=>canonicalModelName(r.model)===target))throw Error('Выберите модель из каталога или своего тарифа');
   const k=modelAssignmentKey(run,m.scope);if(!k)throw Error('Нет названия модели для общего уточнения');
   undoPoint(s);
   if(m.scope==='name')for(const oldKey of equivalentNameKeys(s.modelAssignments,run))delete s.modelAssignments[oldKey];

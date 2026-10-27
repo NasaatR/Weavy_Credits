@@ -35,25 +35,33 @@ export function findModelMatch(value,entries){
 }
 const grams=s=>new Set(Array.from({length:Math.max(0,s.length-1)},(_,i)=>s.slice(i,i+2)));
 const variants=['edit','inpaint','outpaint','fill','pro','lite','turbo','fast','standard','master','mini','preview','ultra','max'];
+const featureCache=new Map(),formsCache=new WeakMap();
+function features(s){
+ if(featureCache.has(s))return featureCache.get(s);
+ const tokens=new Set(s.split(' ')),value={tokens,grams:grams(s),first:s.split(' ')[0],numbers:[...new Set(s.match(/\b\d+(?:\.\d+)*\b/g)||[])].sort().join(','),variants:variants.reduce((bits,v,i)=>bits|(tokens.has(v)?1<<i:0),0)};
+ if(featureCache.size>=8192)for(const key of [...featureCache.keys()].slice(0,256))featureCache.delete(key);
+ featureCache.set(s,value);return value;
+}
 function similarity(a,b){
  if(!a||!b)return 0;if(a===b)return 1;
- const aa=new Set(a.split(' ')),bb=new Set(b.split(' ')),ga=grams(a),gb=grams(b);
- const overlap=[...aa].filter(t=>bb.has(t)).length/(new Set([...aa,...bb]).size||1);
+ const fa=features(a),fb=features(b),aa=fa.tokens,bb=fb.tokens,ga=fa.grams,gb=fb.grams;
+ const shared=[...aa].filter(t=>bb.has(t)).length,overlap=shared/(aa.size+bb.size-shared||1);
  const dice=2*[...ga].filter(g=>gb.has(g)).length/(ga.size+gb.size||1);
- const numbers=s=>[...new Set(s.match(/\b\d+(?:\.\d+)*\b/g)||[])].sort().join(',');
- let score=.55*dice+.35*overlap+.1*Number(a.split(' ')[0]===b.split(' ')[0]);
- if(numbers(a)&&numbers(b)&&numbers(a)!==numbers(b))score-=.2;
- score-=Math.min(.2,variants.filter(t=>aa.has(t)!==bb.has(t)).length*.06);
+ let score=.55*dice+.35*overlap+.1*Number(fa.first===fb.first);
+ if(fa.numbers&&fb.numbers&&fa.numbers!==fb.numbers)score-=.2;
+ let changed=fa.variants^fb.variants,diff=0;while(changed){changed&=changed-1;diff++;}score-=Math.min(.2,diff*.06);
  return Math.max(0,Math.min(1,score));
 }
 export function modelSimilarity(value,entry){
  const inputs=identityVariants(value).slice(-1);let score=0;
  // Provider prefixes carry no model identity: sharing "fal-ai/" must not
  // make unrelated image families look similar.
- for(const name of namesOf(entry))for(const a of inputs)for(const b of identityVariants(name).slice(-1))score=Math.max(score,similarity(a,b));
+ if(!formsCache.has(entry))formsCache.set(entry,[...new Set(namesOf(entry).flatMap(n=>identityVariants(n).slice(-1)))]);
+ for(const a of inputs)for(const b of formsCache.get(entry))score=Math.max(score,similarity(a,b));
  return score;
 }
 export function rankModels(entries,value='',hints=[]){
  const context=[...new Set(hints.filter(v=>typeof v==='string'&&v.trim()))];
- return entries.map(e=>({...e,similarity:Math.max(modelSimilarity(value,e),...context.map(v=>modelSimilarity(v,e)*.96))})).sort((a,b)=>b.similarity-a.similarity||compareModelNames(a.name,b.name));
+ const textGroup=[value,...context].some(v=>/^(?:any llm|anyllm|run any llm|runanyllm|large language model|llm)$/.test(modelIdentity(v)));
+ return entries.map(e=>({...e,similarity:Math.max(textGroup&&e.category==='llm' ? 0.62 : 0,modelSimilarity(value,e),...context.map(v=>modelSimilarity(v,e)*.96))})).sort((a,b)=>b.similarity-a.similarity||compareModelNames(a.name,b.name));
 }

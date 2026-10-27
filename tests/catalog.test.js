@@ -4,7 +4,7 @@ import {catalogEntries,historicalModel} from '../extension/pricing.js';
 import {cleanRun,cleanRate,cost,mergeRun} from '../extension/core.js';
 const run=(model,extra={})=>cleanRun({workspaceId:'w',fileId:'f',runId:'r',model,status:'completed',resultCount:1,native:{savedHistory:true},...extra});
 test('all 147 official model rows have source, publication date and numeric tariff; legacy entry marked',()=>{
- const list=catalogEntries();assert.equal(list.length,188);assert.equal(new Set(list.map(e=>e.name)).size,188);
+ const list=catalogEntries();assert.equal(list.filter(e=>e.category!=='llm').length,188);assert.equal(new Set(list.map(e=>e.name)).size,list.length);assert.ok(list.filter(e=>e.category==='llm').every(e=>e.min===null&&e.kind==='unknown'));
  const verified=list.filter(e=>e.provenance==='official-help');assert.equal(verified.length,147);assert.equal(new Set(verified.map(e=>e.source)).size,10);
  for(const e of verified){assert.ok(e.source.startsWith('https://help.weavy.ai/en/articles/'));assert.ok(e.publishedAt);assert.equal(e.checkedAt,'2026-09-22');assert.ok(Number.isFinite(e.min)&&e.max>=e.min);}
  assert.equal(list.filter(e=>e.provenance==='reference-only').length,1);

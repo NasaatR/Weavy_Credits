@@ -52,7 +52,12 @@ for(const parent of [...entries]){
   entries.push({...parent,name,aliases,derivedFrom:parent.name,provenance:'official-help-variant',options,min:Math.min(...prices),max:Math.max(...prices),modelMode:mode,parameterLabel:'Параметры варианта '+title,priceText:title+' · '+prices.join(' / ')+'; остальные условия из исходной таблицы'});
  }
 }
-const catalog={version:'2026-10-27',aliasesUpdatedAt:'2026-10-27',checkedAt:'2026-09-22',variantsUpdatedAt:'2026-10-23',officialCount:input.length,variantCount:entries.filter(e=>e.derivedFrom).length,entries};
+const directory=JSON.parse(fs.readFileSync(new URL('../docs/llm-models.json',import.meta.url)));
+for(const model of directory.models){
+ const name=model.name,short=name.includes(': ')?name.split(': ').slice(1).join(': '):name;
+ entries.push({name,aliases:[model.id,short,model.id.split('/').at(-1)],category:'llm',provenance:'model-directory',source:directory.source,checkedAt:directory.checkedAt,kind:'unknown',min:null,max:null,priceText:'Тариф Weavy не получен',modelId:model.id});
+}
+const catalog={version:'2026-10-27-llm',aliasesUpdatedAt:'2026-10-27',checkedAt:'2026-09-22',variantsUpdatedAt:'2026-10-23',officialCount:input.length,variantCount:entries.filter(e=>e.derivedFrom).length,textModelCount:directory.models.length,entries};
 fs.writeFileSync(new URL('../extension/catalog-data.js',import.meta.url),'// Public numeric tariff data: all ten official comparison tables. See docs/PRICING-RESEARCH.md.\nexport const BUILTIN_CATALOG = '+JSON.stringify(catalog,null,2)+';\n');
 fs.writeFileSync(new URL('../docs/catalog-data.json',import.meta.url),JSON.stringify(catalog,null,2)+'\n');
-console.log({official:input.length,total:entries.length,unknown:entries.filter(e=>e.kind==='unknown').map(e=>[e.name,e.priceText])});
+console.log({official:input.length,total:entries.length,unpriced:entries.filter(e=>e.kind==='unknown').length,textModels:directory.models.length});
